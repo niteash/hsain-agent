@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -12,10 +13,58 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
-from sqlalchemy import JSON
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+# ============================================================
+# SUPPLIER
+# ============================================================
 
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    name: Mapped[str] = mapped_column(
+        String(150),
+        unique=True,
+        index=True,
+    )
+
+    contact_person: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
+    email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    phone: Mapped[str | None] = mapped_column(
+        String(40),
+        nullable=True,
+    )
+
+    address: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+
+    products: Mapped[list["Product"]] = relationship(
+        back_populates="preferred_supplier",
+    )
 
 # ============================================================
 # PRODUCT
@@ -43,6 +92,53 @@ class Product(Base):
         default=0,
     )
 
+    # Stock health configuration
+
+    minimum_stock: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+    )
+
+    reorder_point: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+    )
+
+    maximum_stock: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+    )
+
+    # Replenishment configuration
+
+    lead_time_days: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+    )
+
+    safety_buffer_days: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        default=None,
+    )
+    preferred_supplier_id: Mapped[int | None] = mapped_column(
+    ForeignKey(
+        "suppliers.id",
+        name="fk_products_preferred_supplier_id_suppliers",
+        ondelete="SET NULL",
+    ),
+    nullable=True,
+    index=True,
+)
+
+    preferred_supplier: Mapped["Supplier | None"] = relationship(
+        back_populates="products",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -52,8 +148,6 @@ class Product(Base):
         back_populates="product",
         cascade="all, delete-orphan",
     )
-
-
 # ============================================================
 # STOCK MOVEMENT
 # ============================================================
@@ -141,13 +235,11 @@ class Investigation(Base):
         default=utc_now,
     )
 
-    # Evidence associated with this investigation.
     evidence_files: Mapped[list["EvidenceFile"]] = relationship(
         back_populates="investigation",
         cascade="all, delete-orphan",
     )
 
-    # Reconciliation history associated with this investigation.
     reconciliations: Mapped[list["EvidenceReconciliation"]] = relationship(
         back_populates="investigation",
         cascade="all, delete-orphan",
@@ -241,21 +333,18 @@ class EvidenceFile(Base):
         back_populates="evidence_files",
     )
 
-    # One extraction per evidence document.
     extraction: Mapped["EvidenceExtraction | None"] = relationship(
         back_populates="evidence",
         cascade="all, delete-orphan",
         uselist=False,
     )
 
-    # One structured AI analysis per evidence document.
     analysis: Mapped["EvidenceAnalysis | None"] = relationship(
         back_populates="evidence",
         cascade="all, delete-orphan",
         uselist=False,
     )
 
-    # Multiple reconciliation attempts per evidence document.
     reconciliations: Mapped[list["EvidenceReconciliation"]] = relationship(
         back_populates="evidence",
         cascade="all, delete-orphan",
@@ -325,7 +414,6 @@ class EvidenceAnalysis(Base):
         default=False,
     )
 
-    # Stores structured JSON, including multiple invoice line items.
     analysis_json: Mapped[str] = mapped_column(
         Text,
     )
@@ -367,7 +455,6 @@ class EvidenceReconciliation(Base):
         String(40),
     )
 
-    # Stores all reconciliation checks, conclusions and limitations.
     result_json: Mapped[str] = mapped_column(
         Text,
     )
@@ -384,7 +471,8 @@ class EvidenceReconciliation(Base):
     investigation: Mapped["Investigation"] = relationship(
         back_populates="reconciliations",
     )
-    
+
+
 # ============================================================
 # INVENTORY MOVEMENT PROPOSAL
 # ============================================================
@@ -409,15 +497,12 @@ class InventoryMovementProposal(Base):
         index=True,
     )
 
-    # receipt, sale, adjustment
     movement_type: Mapped[str] = mapped_column(
         String(30),
     )
 
-    # Positive quantity entered by the reviewer.
     quantity: Mapped[int] = mapped_column(Integer)
 
-    # Signed stock effect.
     quantity_delta: Mapped[int] = mapped_column(Integer)
 
     source_line_item_index: Mapped[int | None] = mapped_column(
@@ -458,9 +543,8 @@ class InventoryMovementProposal(Base):
         DateTime(timezone=True),
         default=utc_now,
     )
-    
-    
-    
+
+
 # ============================================================
 # INVENTORY MOVEMENT AUDIT LOG
 # ============================================================
@@ -503,6 +587,8 @@ class MovementAuditLog(Base):
         default=utc_now,
         index=True,
     )
+
+
 # ============================================================
 # STOCK OPENING BALANCE
 # ============================================================
@@ -544,7 +630,8 @@ class StockOpeningBalance(Base):
     )
 
     product: Mapped["Product"] = relationship()
-    
+
+
 # ============================================================
 # STOCK DISCREPANCY ALERT
 # ============================================================
@@ -559,8 +646,6 @@ class StockDiscrepancy(Base):
         index=True,
     )
 
-    # Nullable unique key: only one active alert per product.
-    # Set to None when the alert is resolved.
     active_product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.id"),
         unique=True,
@@ -620,6 +705,7 @@ class StockDiscrepancy(Base):
         foreign_keys=[product_id],
     )
 
+
 # ============================================================
 # AI INVESTIGATION REPORT
 # ============================================================
@@ -651,6 +737,57 @@ class AIInvestigationReport(Base):
     report_json: Mapped[str] = mapped_column(Text)
 
     context_snapshot: Mapped[str] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        index=True,
+    )
+
+
+# ============================================================
+# STOCK DISCREPANCY AUDIT LOG
+# ============================================================
+
+class StockDiscrepancyAuditLog(Base):
+    __tablename__ = "stock_discrepancy_audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    alert_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_discrepancies.id"),
+        index=True,
+    )
+
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        index=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(40),
+        index=True,
+    )
+
+    actor: Mapped[str] = mapped_column(
+        String(120),
+        default="system",
+    )
+
+    previous_status: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    new_status: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        default="{}",
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

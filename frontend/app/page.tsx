@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-
+import { Package, Boxes } from "lucide-react";
 import {
   decideOrder,
   getInvestigations,
@@ -36,7 +36,7 @@ const routeNavigation = [
     icon: "▤",
   },
   {
-    href: "/timeline",
+    href: "/inventory/timeline",
     label: "Inventory Timeline",
     icon: "◷",
   },
@@ -44,6 +44,30 @@ const routeNavigation = [
     href: "/movements",
     label: "Movement Approvals",
     icon: "↔",
+  },
+  {
+    label: "Products",
+
+    href: "/products",
+
+    description: "Manage product catalogue",
+
+    icon: Package,
+  },
+
+  {
+    label: "Inventory",
+
+    href: "/inventory",
+
+    description: "Stock overview and reconciliation",
+
+    icon: Boxes,
+  },
+  {
+    href: "/analytics",
+    label: "Analytics",
+    icon: "▥",
   },
 ];
 
@@ -112,7 +136,14 @@ function RouteLinks({ mobile = false }: { mobile?: boolean }) {
               : "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-700"
           }
         >
-          <span className="w-5 text-center text-lg">{icon}</span>
+          <span className="flex w-5 items-center justify-center">
+            {typeof icon === "string"
+              ? icon
+              : (() => {
+                  const Icon = icon;
+                  return <Icon size={18} strokeWidth={1.8} />;
+                })()}
+          </span>
           <span>{label}</span>
         </Link>
       ))}

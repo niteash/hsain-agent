@@ -11,6 +11,12 @@ from app.api.inventory_timeline import router as inventory_timeline_router
 from app.api.inventory_movements import router as inventory_movements_router
 from app.api.investigations import router as investigations_router
 from app.api import products
+from app.api.inventory_risk import router as inventory_risk_router
+from app.api.suppliers import router as suppliers_router
+from app.api.reorder_intelligence import (
+    router as reorder_intelligence_router,
+)
+
 app = FastAPI(
     title="Hsain Agent API",
     description="AI-powered retail inventory investigation agent",
@@ -24,8 +30,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+allow_methods=["*"],
+allow_headers=["*"],
 )
 app.include_router(ai_router)
 app.include_router(inventory_router)
@@ -37,6 +43,10 @@ app.include_router(reconciliation_router)
 app.include_router(inventory_timeline_router)
 app.include_router(inventory_movements_router)
 app.include_router(investigations_router)
+app.include_router(products.router)
+app.include_router(inventory_risk_router)
+app.include_router(reorder_intelligence_router)
+app.include_router(suppliers_router)
 app.include_router(products.router)
 
 @app.get("/health")

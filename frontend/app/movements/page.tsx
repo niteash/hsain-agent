@@ -13,6 +13,23 @@ import {
 
 type Filter = "all" | MovementStatus;
 
+type MovementAuditEntry = {
+  id: number;
+  proposal_id: number;
+  action: string;
+  actor: string;
+  previous_status: string | null;
+  new_status: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
+type MovementAuditResponse = {
+  proposal_id: number;
+  total: number;
+  items: MovementAuditEntry[];
+};
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     pending_approval: "bg-amber-50 text-amber-700",
@@ -51,7 +68,206 @@ function InfoCard({
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString();
+}
+
+async function getMovementAudit(
+  proposalId: number,
+): Promise<MovementAuditResponse> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+  }
+
+  const response = await fetch(
+    `${baseUrl}/api/inventory-movements/${proposalId}/audit`,
+    { cache: "no-store" },
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Unable to load movement audit history.");
+  }
+
+  return response.json();
+}
+
+function AuditTimeline({
+  items,
+  loading,
+  error,
+  onRefresh,
+}: {
+  items: MovementAuditEntry[];
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  const sortedItems = [...items].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+
+  function eventStyle(action: string) {
+    switch (action) {
+      case "approved":
+        return {
+          icon: "✓",
+          container: "bg-green-50 text-green-700",
+          label: "Approval recorded",
+        };
+
+      case "rejected":
+        return {
+          icon: "×",
+          container: "bg-red-50 text-red-700",
+          label: "Rejection recorded",
+        };
+
+      case "created":
+        return {
+          icon: "+",
+          container: "bg-amber-50 text-amber-700",
+          label: "Proposal created",
+        };
+
+      default:
+        return {
+          icon: "•",
+          container: "bg-neutral-100 text-neutral-600",
+          label: action.replaceAll("_", " "),
+        };
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-neutral-200 bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-red-600">
+            Accountability
+          </p>
+
+          <h3 className="mt-1 text-lg font-bold">Movement audit trail</h3>
+
+          <p className="mt-1 text-sm text-neutral-500">
+            Recorded history of proposal creation and review decisions.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="rounded-xl border border-neutral-200 px-4 py-2 text-sm font-semibold hover:bg-neutral-50 disabled:opacity-50"
+        >
+          {loading ? "Refreshing..." : "Refresh history"}
+        </button>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+        >
+          {error}
+        </div>
+      )}
+
+      {loading && items.length === 0 ? (
+        <p className="mt-5 rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500">
+          Loading audit history...
+        </p>
+      ) : sortedItems.length === 0 ? (
+        <p className="mt-5 rounded-xl bg-neutral-50 p-5 text-center text-sm text-neutral-500">
+          No audit events available for this proposal.
+        </p>
+      ) : (
+        <div className="mt-7">
+          {sortedItems.map((entry, index) => {
+            const style = eventStyle(entry.action);
+            const isLast = index === sortedItems.length - 1;
+
+            return (
+              <div key={entry.id} className="relative flex gap-4">
+                <div className="flex flex-col items-center">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold ${style.container}`}
+                  >
+                    {style.icon}
+                  </span>
+
+                  {!isLast && (
+                    <span className="my-2 h-full min-h-12 w-px bg-neutral-200" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1 pb-7">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-bold capitalize text-neutral-900">
+                        {entry.action.replaceAll("_", " ")}
+                      </p>
+
+                      <p className="mt-1 text-xs font-medium text-neutral-500">
+                        {style.label}
+                      </p>
+                    </div>
+
+                    <time className="text-xs text-neutral-400">
+                      {formatDate(entry.created_at)}
+                    </time>
+                  </div>
+
+                  <div className="mt-3 rounded-xl border border-neutral-100 bg-neutral-50 p-4">
+                    <p className="text-sm text-neutral-600">
+                      Recorded by{" "}
+                      <span className="font-semibold text-neutral-900">
+                        {entry.actor || "System"}
+                      </span>
+                    </p>
+
+                    {(entry.previous_status || entry.new_status) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {entry.previous_status && (
+                          <StatusBadge status={entry.previous_status} />
+                        )}
+
+                        {entry.previous_status && entry.new_status && (
+                          <span className="text-neutral-400">→</span>
+                        )}
+
+                        {entry.new_status && (
+                          <StatusBadge status={entry.new_status} />
+                        )}
+                      </div>
+                    )}
+
+                    {entry.details && Object.keys(entry.details).length > 0 && (
+                      <details className="mt-4 border-t border-neutral-200 pt-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-neutral-600">
+                          View recorded event details
+                        </summary>
+
+                        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-neutral-600">
+                          {JSON.stringify(entry.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default function MovementApprovalPage() {
@@ -65,6 +281,10 @@ export default function MovementApprovalPage() {
 
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+
+  const [auditItems, setAuditItems] = useState<MovementAuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -96,9 +316,36 @@ export default function MovementApprovalPage() {
     }
   }, [filter]);
 
+  const loadAudit = useCallback(async (proposalId: number) => {
+    setAuditLoading(true);
+    setAuditError("");
+    setAuditItems([]);
+
+    try {
+      const result = await getMovementAudit(proposalId);
+      setAuditItems(result.items ?? []);
+    } catch (err) {
+      setAuditError(
+        err instanceof Error ? err.message : "Unable to load audit history.",
+      );
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadProposals();
   }, [loadProposals]);
+
+  useEffect(() => {
+    if (!selected) {
+      setAuditItems([]);
+      setAuditError("");
+      return;
+    }
+
+    void loadAudit(selected.id);
+  }, [selected?.id, loadAudit]);
 
   const pendingCount = items.filter(
     (item) => item.status === "pending_approval",
@@ -157,6 +404,7 @@ export default function MovementApprovalPage() {
       setRejectionReason("");
 
       await loadProposals();
+      await loadAudit(result.id);
     } catch (err) {
       setError(
         err instanceof Error
@@ -267,6 +515,7 @@ export default function MovementApprovalPage() {
               onClick={() => {
                 setFilter(value);
                 setSelected(null);
+                setAuditItems([]);
                 setError("");
                 setSuccess("");
               }}
@@ -285,6 +534,7 @@ export default function MovementApprovalPage() {
           <section className="rounded-2xl border border-neutral-200 bg-white p-5">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="font-semibold">Movement proposals</h2>
+
               <span className="text-xs text-neutral-400">
                 {items.length} record(s)
               </span>
@@ -448,7 +698,6 @@ export default function MovementApprovalPage() {
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl bg-neutral-50 p-4">
                       <p className="text-xs text-neutral-500">Current stock</p>
-
                       <p className="mt-2 text-2xl font-bold">
                         {selected.current_stock ?? "—"}
                       </p>
@@ -456,7 +705,6 @@ export default function MovementApprovalPage() {
 
                     <div className="rounded-xl bg-neutral-50 p-4">
                       <p className="text-xs text-neutral-500">Stock change</p>
-
                       <p
                         className={`mt-2 text-2xl font-bold ${
                           selected.quantity_delta >= 0
@@ -472,7 +720,6 @@ export default function MovementApprovalPage() {
 
                     <div className="rounded-xl border border-red-100 bg-red-50 p-4">
                       <p className="text-xs text-red-600">Projected stock</p>
-
                       <p className="mt-2 text-2xl font-bold text-red-700">
                         {projectedStock ?? "—"}
                       </p>
@@ -499,12 +746,19 @@ export default function MovementApprovalPage() {
                   )}
                 </section>
 
+                <AuditTimeline
+                  items={auditItems}
+                  loading={auditLoading}
+                  error={auditError}
+                  onRefresh={() => void loadAudit(selected.id)}
+                />
+
                 {selected.status === "pending_approval" && (
                   <section className="rounded-2xl border border-neutral-200 bg-white p-6">
                     <h3 className="font-semibold">Review decision</h3>
 
                     <p className="mt-1 text-sm text-neutral-500">
-                      Your approval will create a stock movement and update the
+                      Approval creates a stock movement and updates the
                       product's current stock.
                     </p>
 
