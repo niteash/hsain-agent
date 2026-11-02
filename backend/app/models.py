@@ -79,8 +79,11 @@ class Product(Base):
         String(120),
         unique=True,
         index=True,
+        
     )
 
+    investigations: Mapped[list["Investigation"]] = relationship()
+    
     sku: Mapped[str | None] = mapped_column(
         String(80),
         unique=True,
@@ -205,7 +208,7 @@ class Investigation(Base):
     )
 
     expected_stock: Mapped[int] = mapped_column(Integer)
-
+    product: Mapped["Product"] = relationship()
     physical_stock: Mapped[int] = mapped_column(Integer)
 
     units_sold: Mapped[int] = mapped_column(
@@ -251,6 +254,7 @@ class Investigation(Base):
 # ============================================================
 
 class SupplierOrder(Base):
+    product: Mapped["Product"] = relationship()
     __tablename__ = "supplier_orders"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -259,6 +263,23 @@ class SupplierOrder(Base):
         ForeignKey("investigations.id"),
         index=True,
     )
+    supplier_id: Mapped[int | None] = mapped_column(
+    ForeignKey(
+        "suppliers.id",
+        ondelete="SET NULL",
+    ),
+    nullable=True,
+    index=True,
+)
+
+    supplier: Mapped["Supplier | None"] = relationship()
+    supplier_id: Mapped[int | None] = mapped_column(
+    ForeignKey("suppliers.id", ondelete="SET NULL"),
+    nullable=True,
+    index=True,
+)
+
+    supplier: Mapped["Supplier | None"] = relationship()
 
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id"),

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, startTransition } from "react";
-
 import Link from "next/link";
 
 import {
@@ -13,6 +12,7 @@ import {
   getEvidenceDownloadUrl,
   reconcileEvidence,
   uploadEvidence,
+  createMovementProposal,
   type EvidenceFile,
   type EvidenceAnalysisResponse,
   type EvidenceExtraction,
@@ -20,6 +20,7 @@ import {
   type InventoryLineItem,
   type ReconciliationCheck,
   type LineItemReconciliation,
+  type MovementProposal,
 } from "@/lib/api";
 
 // ============================================
@@ -36,6 +37,7 @@ function StatusBadge({ status }: { status: string }) {
     relevant: "bg-green-50 text-green-700",
     matched: "bg-green-50 text-green-700",
     rejected: "bg-red-50 text-red-700",
+    pending_approval: "bg-amber-50 text-amber-700",
   };
 
   return (
@@ -59,7 +61,6 @@ function SectionTitle({
   return (
     <div className="mb-5">
       <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
-
       {description && (
         <p className="mt-1 text-sm text-neutral-500">{description}</p>
       )}
@@ -85,7 +86,6 @@ function InfoCard({
   return (
     <div className="rounded-xl border border-neutral-100 p-4">
       <p className="text-xs text-neutral-400">{label}</p>
-
       <p className="mt-1 break-words text-sm font-semibold text-neutral-900">
         {value === null || value === undefined || value === ""
           ? "Not identified"
@@ -118,7 +118,6 @@ function getInventoryLineItems(
     return inventory.line_items;
   }
 
-  // Older saved analysis may contain only one product.
   if (
     inventory.product_name ||
     (inventory.quantity !== null && inventory.quantity !== undefined)
@@ -173,7 +172,6 @@ function ValidationChecks({ checks }: { checks: ReconciliationCheck[] }) {
                 " ",
               )}
             </p>
-
             <p className="mt-1 text-sm leading-6 text-neutral-500">
               {check.details ?? check.message ?? check.status ?? ""}
             </p>
@@ -218,27 +216,22 @@ function InventoryLineItemsTable({ items }: { items: InventoryLineItem[] }) {
               <td className="px-4 py-4 font-semibold text-neutral-900">
                 {item.product_name ?? "Unknown product"}
               </td>
-
               <td className="px-4 py-4 text-neutral-600">{item.sku ?? "—"}</td>
-
               <td className="px-4 py-4 font-medium text-neutral-800">
                 {item.quantity === null
                   ? "—"
                   : `${item.quantity} ${item.quantity_unit ?? ""}`}
               </td>
-
               <td className="px-4 py-4">
                 <span className="rounded-lg bg-neutral-100 px-2 py-1 text-xs capitalize text-neutral-700">
                   {item.quantity_type.replaceAll("_", " ")}
                 </span>
               </td>
-
               <td className="px-4 py-4 text-neutral-600">
                 {item.unit_price === null
                   ? "—"
                   : `${item.currency ?? ""} ${item.unit_price}`}
               </td>
-
               <td className="px-4 py-4 font-medium text-neutral-800">
                 {item.total_price === null
                   ? "—"
@@ -257,9 +250,7 @@ function InventoryLineItemsTable({ items }: { items: InventoryLineItem[] }) {
 // ============================================
 
 function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
-  if (!items.length) {
-    return null;
-  }
+  if (!items.length) return null;
 
   return (
     <div className="space-y-4">
@@ -273,16 +264,13 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
               <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Line item {item.line_item_index + 1}
               </p>
-
               <h4 className="mt-2 font-semibold text-neutral-900">
                 {item.product_name ?? "Unknown product"}
               </h4>
-
               {item.sku && (
                 <p className="mt-1 text-xs text-neutral-500">SKU: {item.sku}</p>
               )}
             </div>
-
             <StatusBadge status={item.status} />
           </div>
 
@@ -295,12 +283,10 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
                   : `${item.quantity} ${item.quantity_unit ?? ""}`
               }
             />
-
             <InfoCard
               label="Quantity type"
               value={item.quantity_type.replaceAll("_", " ")}
             />
-
             <InfoCard
               label="Matched by"
               value={item.matched_by ?? "No exact match"}
@@ -311,7 +297,6 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
               Product match
             </p>
-
             <p
               className={`text-sm font-medium ${
                 item.product_match ? "text-green-700" : "text-red-700"
@@ -327,7 +312,6 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
             <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
               Conclusion
             </p>
-
             <p className="mt-2 text-sm leading-6 text-neutral-700">
               {item.conclusion}
             </p>
@@ -338,7 +322,6 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Checks
               </p>
-
               <ValidationChecks checks={item.checks} />
             </div>
           )}
@@ -372,17 +355,20 @@ export default function EvidencePage() {
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
   const [extraction, setExtraction] = useState<EvidenceExtraction | null>(null);
-
   const [analysis, setAnalysis] = useState<EvidenceAnalysisResponse | null>(
     null,
   );
-
   const [reconciliation, setReconciliation] =
     useState<ReconciliationResponse | null>(null);
 
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
+
+  // NEW: Movement proposal state
+  const [creatingMovement, setCreatingMovement] = useState(false);
+  const [createdMovement, setCreatedMovement] =
+    useState<MovementProposal | null>(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -396,12 +382,10 @@ export default function EvidencePage() {
 
     try {
       const result = await getEvidence(id);
-
       setFiles(result.items ?? []);
       setError("");
     } catch (err) {
       setFiles([]);
-
       setError(err instanceof Error ? err.message : "Unable to load evidence.");
     } finally {
       setLoadingFiles(false);
@@ -411,9 +395,7 @@ export default function EvidencePage() {
   useEffect(() => {
     const id = Number(investigationId);
 
-    if (!Number.isInteger(id) || id < 1) {
-      return;
-    }
+    if (!Number.isInteger(id) || id < 1) return;
 
     startTransition(() => {
       void loadEvidence(id);
@@ -452,11 +434,11 @@ export default function EvidencePage() {
       await uploadEvidence(id, file);
 
       setSuccess("Evidence uploaded successfully.");
-
       setSelectedFile(null);
       setExtraction(null);
       setAnalysis(null);
       setReconciliation(null);
+      setCreatedMovement(null);
 
       await loadEvidence(id);
     } catch (err) {
@@ -476,6 +458,7 @@ export default function EvidencePage() {
     setExtraction(null);
     setAnalysis(null);
     setReconciliation(null);
+    setCreatedMovement(null);
     setError("");
     setSuccess("");
 
@@ -483,7 +466,6 @@ export default function EvidencePage() {
 
     try {
       const savedAnalysis = await getEvidenceAnalysis(evidenceId);
-
       setAnalysis(savedAnalysis);
     } catch {
       // No saved analysis yet.
@@ -521,9 +503,7 @@ export default function EvidencePage() {
 
     try {
       const result = await extractEvidence(getEvidenceId(selectedFile));
-
       setExtraction(result);
-
       setSuccess("Document text extracted successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extraction failed.");
@@ -545,10 +525,9 @@ export default function EvidencePage() {
 
     try {
       const result = await analyzeEvidence(getEvidenceId(selectedFile));
-
       setAnalysis(result);
       setReconciliation(null);
-
+      setCreatedMovement(null);
       setSuccess("Muse Spark analysis completed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
@@ -570,14 +549,88 @@ export default function EvidencePage() {
 
     try {
       const result = await reconcileEvidence(getEvidenceId(selectedFile));
-
       setReconciliation(result);
-
       setSuccess("Evidence reconciliation completed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reconciliation failed.");
     } finally {
       setProcessing(false);
+    }
+  }
+
+  // ============================================
+  // CREATE SALES MOVEMENT PROPOSAL
+  // ============================================
+
+  async function handleCreateMovementProposal(
+    item: InventoryLineItem,
+    lineItemIndex: number,
+  ) {
+    if (!selectedFile || !analysis || creatingMovement) return;
+
+    const evidenceId = getEvidenceId(selectedFile);
+    const investigation = Number(investigationId);
+    const quantity = item.quantity;
+
+    if (!Number.isInteger(investigation) || investigation < 1) {
+      setError("Invalid investigation ID.");
+      return;
+    }
+
+    if (
+      quantity === null ||
+      quantity === undefined ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+      setError(
+        "The selected line item does not have a valid positive integer quantity.",
+      );
+      return;
+    }
+
+    if (item.quantity_type !== "quantity_sold") {
+      setError(
+        "Only line items identified as quantity sold can create a sales movement.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Create a pending sales movement proposal?\n\nProduct: ${
+        item.product_name ?? "Unknown product"
+      }\nQuantity sold: ${quantity}\n\nThis will NOT modify inventory. Human approval is required.`,
+    );
+
+    if (!confirmed) return;
+
+    setCreatingMovement(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const proposal = await createMovementProposal({
+        investigation_id: investigation,
+        evidence_id: evidenceId,
+        movement_type: "sale",
+        quantity,
+        source_line_item_index: lineItemIndex,
+        reason: `Sales movement extracted from ${selectedFile.original_filename}`,
+      });
+
+      setCreatedMovement(proposal);
+
+      setSuccess(
+        `Sales movement proposal #${proposal.id} created successfully. It is awaiting human approval.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create sales movement proposal.",
+      );
+    } finally {
+      setCreatingMovement(false);
     }
   }
 
@@ -593,6 +646,31 @@ export default function EvidencePage() {
 
   const isValidInvestigationId =
     Number.isInteger(Number(investigationId)) && Number(investigationId) > 0;
+
+  const normalizedDocumentType = analysis?.document_type
+    ?.toLowerCase()
+    .replaceAll(" ", "_")
+    .replaceAll("-", "_");
+
+  const isSalesReport = normalizedDocumentType === "sales_report";
+
+  const eligibleSalesItems = analysis
+    ? inventoryItems
+        .map((item, index) => ({ item, index }))
+        .filter(
+          ({ item }) =>
+            item.quantity_type === "quantity_sold" &&
+            item.quantity !== null &&
+            item.quantity !== undefined &&
+            Number.isInteger(item.quantity) &&
+            item.quantity > 0,
+        )
+    : [];
+
+  const canCreateSalesMovement =
+    Boolean(analysis?.is_inventory_relevant) &&
+    isSalesReport &&
+    eligibleSalesItems.length > 0;
 
   // ============================================
   // RENDER
@@ -641,6 +719,7 @@ export default function EvidencePage() {
                 setExtraction(null);
                 setAnalysis(null);
                 setReconciliation(null);
+                setCreatedMovement(null);
                 setError("");
                 setSuccess("");
               }}
@@ -876,7 +955,6 @@ export default function EvidencePage() {
                     <div className="mb-4 grid grid-cols-2 gap-3">
                       <div className="rounded-xl bg-neutral-50 p-4">
                         <p className="text-xs text-neutral-500">Pages</p>
-
                         <p className="mt-1 text-2xl font-bold">
                           {extraction.page_count}
                         </p>
@@ -884,7 +962,6 @@ export default function EvidencePage() {
 
                       <div className="rounded-xl bg-neutral-50 p-4">
                         <p className="text-xs text-neutral-500">Characters</p>
-
                         <p className="mt-1 text-2xl font-bold">
                           {extraction.character_count}
                         </p>
@@ -964,6 +1041,132 @@ export default function EvidencePage() {
                       <InventoryLineItemsTable items={inventoryItems} />
                     </div>
 
+                    {/* NEW: SALES MOVEMENT PROPOSAL */}
+
+                    <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/40 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-base font-bold text-neutral-900">
+                            Create Sales Movement Proposal
+                          </h3>
+
+                          <p className="mt-1 text-sm leading-6 text-neutral-600">
+                            Create an evidence-backed sales movement for a
+                            matched product. Stock will only change after
+                            authorized approval.
+                          </p>
+                        </div>
+
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-red-700">
+                          Human approval required
+                        </span>
+                      </div>
+
+                      {!canCreateSalesMovement ? (
+                        <div className="mt-4 rounded-xl bg-white p-4 text-sm text-neutral-600">
+                          A sales movement can be created only when:
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-neutral-500">
+                            <li>
+                              The document is identified as a sales report.
+                            </li>
+                            <li>The document is inventory relevant.</li>
+                            <li>
+                              At least one line item has a valid positive
+                              quantity sold.
+                            </li>
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="mt-5 space-y-3">
+                          {eligibleSalesItems.map(({ item, index }) => (
+                            <div
+                              key={`${item.sku ?? item.product_name ?? "sale"}-${index}`}
+                              className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-semibold text-neutral-900">
+                                  {item.product_name ?? "Unknown product"}
+                                </p>
+
+                                {item.sku && (
+                                  <p className="mt-1 text-xs text-neutral-500">
+                                    SKU: {item.sku}
+                                  </p>
+                                )}
+
+                                <p className="mt-2 text-sm text-neutral-600">
+                                  Quantity sold:{" "}
+                                  <strong>
+                                    {item.quantity}{" "}
+                                    {item.quantity_unit ?? "units"}
+                                  </strong>
+                                </p>
+
+                                <p className="mt-1 text-xs text-neutral-400">
+                                  Source line item: {index + 1}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCreateMovementProposal(item, index)
+                                }
+                                disabled={
+                                  creatingMovement || Boolean(createdMovement)
+                                }
+                                className="shrink-0 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {creatingMovement
+                                  ? "Creating proposal..."
+                                  : createdMovement
+                                    ? "Proposal created"
+                                    : "Create movement proposal"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {createdMovement && (
+                        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-green-800">
+                                Movement proposal created successfully
+                              </p>
+                              <p className="mt-1 text-xs text-green-700">
+                                Proposal #{createdMovement.id} ·{" "}
+                                {createdMovement.product_name ?? "Product"} ·{" "}
+                                {createdMovement.quantity} units
+                              </p>
+                            </div>
+
+                            <StatusBadge status={createdMovement.status} />
+                          </div>
+
+                          <p className="mt-3 text-xs leading-5 text-green-800">
+                            Inventory has not been modified. Open Movement
+                            Approvals to review this proposal.
+                          </p>
+
+                          <Link
+                            href="/movements"
+                            className="mt-3 inline-flex rounded-lg bg-green-700 px-4 py-2 text-xs font-semibold text-white hover:bg-green-800"
+                          >
+                            Open Movement Approvals →
+                          </Link>
+                        </div>
+                      )}
+
+                      <p className="mt-4 text-xs leading-5 text-neutral-500">
+                        Important: Only create proposals from genuine,
+                        verifiable sales documents. AI-extracted quantities must
+                        be reviewed before approval. Test documents containing
+                        fictional data must only be used in a test environment.
+                      </p>
+                    </div>
+
                     {/* OBSERVATIONS */}
 
                     <div className="mt-7">
@@ -1025,8 +1228,6 @@ export default function EvidencePage() {
                       <StatusBadge status={reconciliation.status} />
                     </div>
 
-                    {/* CONCLUSION */}
-
                     <div className="rounded-xl bg-neutral-50 p-5">
                       <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
                         Overall conclusion
@@ -1036,8 +1237,6 @@ export default function EvidencePage() {
                         {reconciliationResult.conclusion}
                       </p>
                     </div>
-
-                    {/* MATCHED PRODUCTS */}
 
                     {reconciliationResult.matched_products &&
                       reconciliationResult.matched_products.length > 0 && (
@@ -1070,7 +1269,6 @@ export default function EvidencePage() {
                                     <span className="text-sm font-medium">
                                       {product.quantity ?? "—"}
                                     </span>
-
                                     <StatusBadge status={product.status} />
                                   </div>
                                 </div>
@@ -1080,8 +1278,6 @@ export default function EvidencePage() {
                         </div>
                       )}
 
-                    {/* PER-LINE-ITEM RESULTS */}
-
                     {reconciliationResult.line_item_results &&
                       reconciliationResult.line_item_results.length > 0 && (
                         <div className="mt-7">
@@ -1089,24 +1285,18 @@ export default function EvidencePage() {
                             title="Line-item reconciliation"
                             description="Each extracted product is checked independently against the investigation."
                           />
-
                           <LineItemResults
                             items={reconciliationResult.line_item_results}
                           />
                         </div>
                       )}
 
-                    {/* OVERALL VALIDATION CHECKS */}
-
                     <div className="mt-7">
                       <h3 className="mb-3 text-sm font-semibold">
                         Overall validation checks
                       </h3>
-
                       <ValidationChecks checks={reconciliationResult.checks} />
                     </div>
-
-                    {/* LIMITATIONS */}
 
                     {reconciliationResult.limitations.length > 0 && (
                       <div className="mt-7">

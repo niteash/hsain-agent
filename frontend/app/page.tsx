@@ -2,7 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Package, Boxes } from "lucide-react";
+import { usePathname } from "next/navigation";
+import {
+  Package,
+  Boxes,
+  Truck,
+  ChartNoAxesCombined,
+  Clock3,
+  ArrowLeftRight,
+  FileSearch,
+  BrainCircuit,
+  RefreshCw,
+  LayoutDashboard,
+  ClipboardCheck,
+} from "lucide-react";
+
 import {
   decideOrder,
   getInvestigations,
@@ -24,50 +38,61 @@ const initialForm = {
   evidence_notes: "",
 };
 
-const routeNavigation = [
+const routeSections = [
   {
-    href: "/investigations",
-    label: "AI Investigations",
-    icon: "✳",
+    title: "Evidence",
+    items: [
+      {
+        href: "/evidence",
+        label: "Evidence Review",
+        icon: FileSearch,
+      },
+    ],
   },
   {
-    href: "/evidence",
-    label: "Evidence Review",
-    icon: "▤",
+    title: "Inventory",
+    items: [
+      {
+        href: "/inventory",
+        label: "Inventory Overview",
+        icon: Boxes,
+      },
+      {
+        href: "/inventory/reorder",
+        label: "Reorder Intelligence",
+        icon: RefreshCw,
+      },
+      {
+        href: "/products",
+        label: "Products",
+        icon: Package,
+      },
+      {
+        href: "/suppliers",
+        label: "Suppliers",
+        icon: Truck,
+      },
+      {
+        href: "/inventory/timeline",
+        label: "Inventory Timeline",
+        icon: Clock3,
+      },
+      {
+        href: "/movements",
+        label: "Movement Approvals",
+        icon: ArrowLeftRight,
+      },
+    ],
   },
   {
-    href: "/inventory/timeline",
-    label: "Inventory Timeline",
-    icon: "◷",
-  },
-  {
-    href: "/movements",
-    label: "Movement Approvals",
-    icon: "↔",
-  },
-  {
-    label: "Products",
-
-    href: "/products",
-
-    description: "Manage product catalogue",
-
-    icon: Package,
-  },
-
-  {
-    label: "Inventory",
-
-    href: "/inventory",
-
-    description: "Stock overview and reconciliation",
-
-    icon: Boxes,
-  },
-  {
-    href: "/analytics",
-    label: "Analytics",
-    icon: "▥",
+    title: "Insights",
+    items: [
+      {
+        href: "/analytics",
+        label: "Analytics",
+        icon: ChartNoAxesCombined,
+      },
+    ],
   },
 ];
 
@@ -124,30 +149,60 @@ function SectionHeading({
 }
 
 function RouteLinks({ mobile = false }: { mobile?: boolean }) {
+  const pathname = usePathname();
+
   return (
-    <>
-      {routeNavigation.map(({ href, label, icon }) => (
-        <Link
-          key={href}
-          href={href}
-          className={
-            mobile
-              ? "flex items-center justify-center gap-1 rounded-lg bg-zinc-100 px-2 py-2 text-xs font-semibold text-zinc-600 transition hover:bg-red-50 hover:text-red-700"
-              : "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-700"
-          }
-        >
-          <span className="flex w-5 items-center justify-center">
-            {typeof icon === "string"
-              ? icon
-              : (() => {
-                  const Icon = icon;
-                  return <Icon size={18} strokeWidth={1.8} />;
-                })()}
-          </span>
-          <span>{label}</span>
-        </Link>
+    <div className={mobile ? "space-y-4" : "space-y-6"}>
+      {routeSections.map((section) => (
+        <div key={section.title}>
+          {!mobile && (
+            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+              {section.title}
+            </p>
+          )}
+
+          <div
+            className={
+              mobile ? "grid grid-cols-2 gap-2 sm:grid-cols-3" : "space-y-1"
+            }
+          >
+            {section.items.map(({ href, label, icon: Icon }) => {
+              const isActive =
+                pathname === href ||
+                (href !== "/inventory" &&
+                  href !== "/products" &&
+                  href !== "/suppliers" &&
+                  pathname.startsWith(`${href}/`));
+
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={
+                    mobile
+                      ? `flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          isActive
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : "border-zinc-200 bg-white text-zinc-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                        }`
+                      : `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                          isActive
+                            ? "bg-red-50 font-semibold text-red-700"
+                            : "text-zinc-500 hover:bg-red-50 hover:text-red-700"
+                        }`
+                  }
+                >
+                  <Icon size={18} strokeWidth={1.8} className="shrink-0" />
+
+                  <span className="min-w-0 truncate">{label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -209,6 +264,7 @@ function AIInvestigationFeature() {
             {workflow.map(([number, label]) => (
               <div key={number} className="flex items-center gap-3">
                 <span className="text-sm font-bold text-red-400">{number}</span>
+
                 <span className="text-sm font-medium text-zinc-200">
                   {label}
                 </span>
@@ -507,77 +563,71 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f7f7f8] text-zinc-900">
+      {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-zinc-200 bg-white lg:flex">
-        <div className="flex h-20 items-center gap-3 border-b border-zinc-100 px-6">
+        <div className="flex h-20 shrink-0 items-center gap-3 border-b border-zinc-100 px-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-lg font-black text-white">
             H
           </div>
 
+          <div className="min-w-0">
+            <p className="truncate font-bold tracking-tight text-zinc-950">
+              Hsain Agent
+            </p>
+            <p className="text-xs text-zinc-500">Retail Intelligence</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
           <div>
-            <p className="font-bold tracking-tight">Hsain Agent</p>
-            <p className="text-xs text-zinc-500">Retail operations</p>
-          </div>
-        </div>
+            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+              Workspace
+            </p>
 
-        <div className="px-4 pt-7">
-          <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-            Workspace
-          </p>
-
-          <nav className="mt-3 space-y-1">
-            {navigation.map(({ key, label, icon }) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
-                  tab === key
-                    ? "bg-red-50 text-red-700"
-                    : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
-                }`}
-              >
-                <span className="w-5 text-center text-lg">{icon}</span>
-                {label}
-
-                {key === "orders" && pendingCount > 0 && (
-                  <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">
-                    {pendingCount}
+            <div className="space-y-1">
+              {navigation.map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${
+                    tab === key
+                      ? "bg-red-50 text-red-700"
+                      : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950"
+                  }`}
+                >
+                  <span className="w-5 shrink-0 text-center text-lg">
+                    {icon}
                   </span>
-                )}
-              </button>
-            ))}
 
-            <div className="my-4 border-t border-zinc-100" />
+                  <span>{label}</span>
 
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-              Evidence & inventory
-            </p>
-
-            <RouteLinks />
-          </nav>
-        </div>
-
-        <div className="mt-auto border-t border-zinc-100 p-5">
-          <div className="rounded-2xl bg-zinc-950 p-4 text-white">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span className="text-xs font-semibold">
-                Human approval enabled
-              </span>
+                  {key === "orders" && pendingCount > 0 && (
+                    <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
-
-            <p className="mt-3 text-xs leading-5 text-zinc-400">
-              AI investigates discrepancies. You decide what happens next.
-            </p>
           </div>
 
-          <p className="mt-4 text-xs text-zinc-400">Hsain Agent · Prototype</p>
+          <div className="border-t border-zinc-100 pt-5">
+            <RouteLinks />
+          </div>
+        </nav>
+
+        <div className="shrink-0 border-t border-zinc-100 px-5 py-4">
+          <p className="text-xs font-medium text-zinc-400">
+            Hsain Agent · Retail Intelligence
+          </p>
         </div>
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-between border-b border-zinc-200 bg-white/90 px-4 backdrop-blur sm:px-8">
-          <div>
-            <p className="text-sm font-semibold text-zinc-900">
+        {/* Header */}
+        <header className="sticky top-0 z-10 flex min-h-16 items-center justify-between gap-3 border-b border-zinc-200 bg-white/95 px-4 backdrop-blur sm:px-8">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-zinc-900">
               Retail control center
             </p>
 
@@ -586,22 +636,21 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Link
               href="/investigations"
               className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 sm:px-4 sm:text-sm"
             >
-              <span>✳</span>
+              <BrainCircuit size={16} />
               <span className="hidden sm:inline">AI Investigations</span>
               <span className="sm:hidden">AI</span>
-              <span>→</span>
             </Link>
 
             <Link
               href="/evidence"
-              className="hidden items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 sm:inline-flex sm:px-4 sm:text-sm"
+              className="hidden items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 md:inline-flex"
             >
-              <span>▤</span>
+              <FileSearch size={16} />
               Evidence Review
             </Link>
 
@@ -609,34 +658,48 @@ export default function Home() {
               Demo environment
             </span>
 
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700">
               O
             </span>
           </div>
         </header>
 
-        <div className="border-b border-zinc-200 bg-white px-3 py-2 lg:hidden">
+        {/* Mobile navigation */}
+        <div className="border-b border-zinc-200 bg-white px-4 py-3 lg:hidden">
           <div className="grid grid-cols-3 gap-2">
             {navigation.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`rounded-lg px-2 py-2 text-xs font-semibold ${
+                className={`flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition ${
                   tab === key
                     ? "bg-red-600 text-white"
-                    : "bg-zinc-100 text-zinc-600"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-red-50 hover:text-red-700"
                 }`}
               >
-                {key === "investigate" ? "Investigate" : label}
+                {key === "overview" && <LayoutDashboard size={15} />}
+                {key === "investigate" && <BrainCircuit size={15} />}
+                {key === "orders" && <ClipboardCheck size={15} />}
+
+                <span className="truncate">
+                  {key === "investigate" ? "Investigations" : label}
+                </span>
+
+                {key === "orders" && pendingCount > 0 && (
+                  <span className="rounded-full bg-white px-1.5 text-[10px] text-red-700">
+                    {pendingCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-4">
             <RouteLinks mobile />
           </div>
         </div>
 
+        {/* Main content */}
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-10">
           {dashboardLoading && (
             <div
@@ -675,6 +738,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* Overview */}
           {tab === "overview" && (
             <>
               <SectionHeading
@@ -755,7 +819,7 @@ export default function Home() {
 
                             setTab("investigate");
                           }}
-                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-zinc-50"
+                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-zinc-50"
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold">
@@ -866,6 +930,7 @@ export default function Home() {
             </>
           )}
 
+          {/* Investigations */}
           {tab === "investigate" && (
             <>
               <SectionHeading
@@ -1160,7 +1225,7 @@ export default function Home() {
                           href="/evidence"
                           className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-100"
                         >
-                          <span>▤</span>
+                          <FileSearch size={16} />
                           Review supporting evidence →
                         </Link>
                       </div>
@@ -1216,6 +1281,7 @@ export default function Home() {
             </>
           )}
 
+          {/* Order approvals */}
           {tab === "orders" && (
             <>
               <SectionHeading
@@ -1314,13 +1380,13 @@ export default function Home() {
                         </div>
 
                         {order.status === "pending_approval" && (
-                          <div className="flex gap-2">
+                          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                             <button
                               disabled={busyOrder !== null}
                               onClick={() =>
                                 handleDecision(order.order_id, "reject")
                               }
-                              className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                             >
                               {busyOrder === order.order_id
                                 ? "Saving…"
@@ -1332,7 +1398,7 @@ export default function Home() {
                               onClick={() =>
                                 handleDecision(order.order_id, "approve")
                               }
-                              className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                             >
                               {busyOrder === order.order_id
                                 ? "Saving…"

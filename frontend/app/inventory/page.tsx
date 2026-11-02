@@ -43,11 +43,9 @@ function MetricCard({
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-zinc-500">{label}</p>
-
       <p className={`mt-3 text-3xl font-bold ${colors[accent ?? "black"]}`}>
         {formatNumber(value)}
       </p>
-
       <p className="mt-2 text-xs text-zinc-400">{description}</p>
     </div>
   );
@@ -269,7 +267,7 @@ export default function InventoryDashboardPage() {
                 description="Navigate to inventory control workflows."
               />
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <QuickAction
                   title="Movement ledger"
                   description="Review approved stock transactions."
@@ -296,6 +294,22 @@ export default function InventoryDashboardPage() {
                   description="Manage your product catalogue."
                   href="/products"
                   number="04"
+                />
+
+                <QuickAction
+                  title="Reorder Intelligence"
+                  description="Review stock risks, reorder requirements, and calculated recommendations."
+                  href="/inventory/reorder"
+                  number="05"
+                  featured
+                />
+
+                <QuickAction
+                  title="Supplier Orders"
+                  description="Create, review, approve, and verify supplier order proposals."
+                  href="/orders"
+                  number="06"
+                  featured
                 />
               </div>
             </section>
@@ -503,7 +517,7 @@ export default function InventoryDashboardPage() {
                             {movement.current_stock}
                           </td>
 
-                          <td className="px-4 py-4 whitespace-nowrap text-xs text-zinc-500">
+                          <td className="whitespace-nowrap px-4 py-4 text-xs text-zinc-500">
                             {formatDate(movement.created_at)}
                           </td>
                         </tr>
@@ -525,16 +539,22 @@ function QuickAction({
   description,
   href,
   number,
+  featured = false,
 }: {
   title: string;
   description: string;
   href: string;
   number: string;
+  featured?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="group rounded-2xl border border-zinc-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md"
+      className={`group rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md ${
+        featured
+          ? "border-red-200 bg-red-50/50 hover:border-red-400"
+          : "border-zinc-200 bg-white hover:border-red-200"
+      }`}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-red-600">{number}</span>
