@@ -15,7 +15,7 @@ from app.api.inventory_risk import router as inventory_risk_router
 from app.api.suppliers import router as suppliers_router
 from app.api.multimodal import router as multimodal_router
 from app.api.visual_reviews import router as visual_reviews_router
-
+from app.config import CORS_ORIGINS
 
 from app.api.reorder_intelligence import (
     router as reorder_intelligence_router,
@@ -26,17 +26,24 @@ app = FastAPI(
     description="AI-powered retail inventory investigation agent",
     version="0.1.0",
 )
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
-allow_methods=["*"],
-allow_headers=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     # allow_origins=[
+#     #     "http://localhost:3000",
+#     #     "http://127.0.0.1:3000",
+#     # ],
+#     allow_credentials=False,
+# allow_methods=["*"],
+# allow_headers=["*"],
+# )
 app.include_router(ai_router)
 app.include_router(inventory_router)
 app.include_router(history_router)

@@ -7,6 +7,16 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 load_dotenv(BACKEND_DIR / ".env")
 
+CORS_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
+
+
 MODEL_API_KEY = os.getenv("MODEL_API_KEY")
 
 MODEL_API_BASE_URL = os.getenv(

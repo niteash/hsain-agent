@@ -82,11 +82,11 @@ def upgrade() -> None:
     )
 
     op.create_index(
-        "ix_evidence_visual_analyses_evidence_id",
-        "evidence_visual_analyses",
-        ["evidence_id"],
-        unique=True,
-    )
+    "ix_evidence_visual_analyses_evidence_id",
+    "evidence_visual_analyses",
+    ["evidence_id"],
+    unique=False,
+)
 
 
 def downgrade() -> None:
