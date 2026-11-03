@@ -38,6 +38,9 @@ export default function StockAlertsPage() {
   const [total, setTotal] = useState(0);
 
   const loadAlerts = useCallback(async () => {
+    // Defer state updates until after the effect has completed.
+    await Promise.resolve();
+
     try {
       setLoading(true);
       setError("");
@@ -58,7 +61,13 @@ export default function StockAlertsPage() {
   }, [status]);
 
   useEffect(() => {
-    void loadAlerts();
+    const timeoutId = window.setTimeout(() => {
+      void loadAlerts();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadAlerts]);
 
   async function handleResolve() {

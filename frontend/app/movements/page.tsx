@@ -333,19 +333,27 @@ export default function MovementApprovalPage() {
     }
   }, []);
 
+  // Initial loading and filter changes.
   useEffect(() => {
-    void loadProposals();
+    const timer = window.setTimeout(() => {
+      void loadProposals();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadProposals]);
 
-  useEffect(() => {
-    if (!selected) {
-      setAuditItems([]);
-      setAuditError("");
-      return;
-    }
+  // Load audit history when the selected proposal changes.
+  const selectedProposalId = selected?.id ?? null;
 
-    void loadAudit(selected.id);
-  }, [selected?.id, loadAudit]);
+  useEffect(() => {
+    if (selectedProposalId === null) return;
+
+    const timer = window.setTimeout(() => {
+      void loadAudit(selectedProposalId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedProposalId, loadAudit]);
 
   const pendingCount = items.filter(
     (item) => item.status === "pending_approval",
@@ -420,6 +428,26 @@ export default function MovementApprovalPage() {
     selected?.current_stock !== null && selected?.current_stock !== undefined
       ? selected.current_stock + selected.quantity_delta
       : null;
+
+  function handleFilterChange(value: Filter) {
+    setFilter(value);
+    setSelected(null);
+    setAuditItems([]);
+    setAuditError("");
+    setAuditLoading(false);
+    setError("");
+    setSuccess("");
+  }
+
+  function handleSelectProposal(item: MovementProposal) {
+    setSelected(item);
+    setAuditItems([]);
+    setAuditError("");
+    setAuditLoading(false);
+    setError("");
+    setSuccess("");
+    setRejectionReason("");
+  }
 
   return (
     <main className="min-h-screen bg-[#f8f8f7] px-5 py-8 text-neutral-900 md:px-10">
@@ -512,13 +540,7 @@ export default function MovementApprovalPage() {
             <button
               key={value}
               type="button"
-              onClick={() => {
-                setFilter(value);
-                setSelected(null);
-                setAuditItems([]);
-                setError("");
-                setSuccess("");
-              }}
+              onClick={() => handleFilterChange(value)}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                 filter === value
                   ? "bg-neutral-900 text-white"
@@ -554,12 +576,7 @@ export default function MovementApprovalPage() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
-                      setSelected(item);
-                      setError("");
-                      setSuccess("");
-                      setRejectionReason("");
-                    }}
+                    onClick={() => handleSelectProposal(item)}
                     className={`w-full rounded-xl border p-4 text-left transition ${
                       selected?.id === item.id
                         ? "border-red-300 bg-red-50"
@@ -759,7 +776,7 @@ export default function MovementApprovalPage() {
 
                     <p className="mt-1 text-sm text-neutral-500">
                       Approval creates a stock movement and updates the
-                      product's current stock.
+                      product&apos;s current stock.
                     </p>
 
                     <div className="mt-5">

@@ -45,12 +45,11 @@ def generate_report(
             detail=str(exc),
         )
 
-    except InvestigationGenerationError as exc:
-
+    except InvestigationGenerationError:
         raise HTTPException(
-            status_code=502,
-            detail=str(exc),
-        )
+        status_code=502,
+        detail="Unable to generate a valid inventory investigation report.",
+    )
 
 
 @router.get(

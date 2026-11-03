@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, startTransition } from "react";
+
 import Link from "next/link";
+
+import VisualInspectionPanel from "@/components/VisualInspectionPanel";
 
 import {
   analyzeEvidence,
@@ -27,7 +30,9 @@ import {
 // UI COMPONENTS
 // ============================================
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: { status?: string | null }) {
+  const normalizedStatus = status?.trim() || "unknown";
+
   const styles: Record<string, string> = {
     completed: "bg-green-50 text-green-700",
     corroborated: "bg-green-50 text-green-700",
@@ -37,16 +42,18 @@ function StatusBadge({ status }: { status: string }) {
     relevant: "bg-green-50 text-green-700",
     matched: "bg-green-50 text-green-700",
     rejected: "bg-red-50 text-red-700",
+    pending: "bg-amber-50 text-amber-700",
     pending_approval: "bg-amber-50 text-amber-700",
+    unknown: "bg-neutral-100 text-neutral-600",
   };
 
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-        styles[status] ?? "bg-neutral-100 text-neutral-600"
+        styles[normalizedStatus] ?? styles.unknown
       }`}
     >
-      {status.replaceAll("_", " ")}
+      {normalizedStatus.replaceAll("_", " ")}
     </span>
   );
 }
@@ -61,6 +68,7 @@ function SectionTitle({
   return (
     <div className="mb-5">
       <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+
       {description && (
         <p className="mt-1 text-sm text-neutral-500">{description}</p>
       )}
@@ -86,6 +94,7 @@ function InfoCard({
   return (
     <div className="rounded-xl border border-neutral-100 p-4">
       <p className="text-xs text-neutral-400">{label}</p>
+
       <p className="mt-1 break-words text-sm font-semibold text-neutral-900">
         {value === null || value === undefined || value === ""
           ? "Not identified"
@@ -94,7 +103,62 @@ function InfoCard({
     </div>
   );
 }
+function EvidenceImagePreview({
+  evidenceId,
+  filename,
+}: {
+  evidenceId: number;
+  filename: string;
+}) {
+  const [imageError, setImageError] = useState(false);
 
+  const imageUrl = getEvidenceDownloadUrl(evidenceId);
+
+  return (
+    <div className="mt-6 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-neutral-800">
+            Image preview
+          </p>
+          <p className="mt-1 text-xs text-neutral-400">
+            Original evidence image
+          </p>
+        </div>
+
+        <a
+          href={imageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs font-medium text-red-600 hover:text-red-700"
+        >
+          Open original ↗
+        </a>
+      </div>
+
+      {!imageError ? (
+        <div className="flex min-h-[220px] items-center justify-center p-3 sm:p-5">
+          <img
+            src={imageUrl}
+            alt={filename}
+            onError={() => setImageError(true)}
+            className="max-h-[520px] w-full rounded-lg object-contain"
+          />
+        </div>
+      ) : (
+        <div className="flex min-h-[220px] flex-col items-center justify-center p-8 text-center">
+          <span className="text-3xl">🖼️</span>
+          <p className="mt-3 text-sm font-semibold text-neutral-700">
+            Unable to load image preview
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Try downloading the original evidence file.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 function getEvidenceId(file: EvidenceFile): number {
   const id = file.id ?? file.evidence_id;
 
@@ -172,6 +236,7 @@ function ValidationChecks({ checks }: { checks: ReconciliationCheck[] }) {
                 " ",
               )}
             </p>
+
             <p className="mt-1 text-sm leading-6 text-neutral-500">
               {check.details ?? check.message ?? check.status ?? ""}
             </p>
@@ -216,22 +281,27 @@ function InventoryLineItemsTable({ items }: { items: InventoryLineItem[] }) {
               <td className="px-4 py-4 font-semibold text-neutral-900">
                 {item.product_name ?? "Unknown product"}
               </td>
+
               <td className="px-4 py-4 text-neutral-600">{item.sku ?? "—"}</td>
+
               <td className="px-4 py-4 font-medium text-neutral-800">
                 {item.quantity === null
                   ? "—"
                   : `${item.quantity} ${item.quantity_unit ?? ""}`}
               </td>
+
               <td className="px-4 py-4">
                 <span className="rounded-lg bg-neutral-100 px-2 py-1 text-xs capitalize text-neutral-700">
                   {item.quantity_type.replaceAll("_", " ")}
                 </span>
               </td>
+
               <td className="px-4 py-4 text-neutral-600">
                 {item.unit_price === null
                   ? "—"
                   : `${item.currency ?? ""} ${item.unit_price}`}
               </td>
+
               <td className="px-4 py-4 font-medium text-neutral-800">
                 {item.total_price === null
                   ? "—"
@@ -264,13 +334,16 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
               <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Line item {item.line_item_index + 1}
               </p>
+
               <h4 className="mt-2 font-semibold text-neutral-900">
                 {item.product_name ?? "Unknown product"}
               </h4>
+
               {item.sku && (
                 <p className="mt-1 text-xs text-neutral-500">SKU: {item.sku}</p>
               )}
             </div>
+
             <StatusBadge status={item.status} />
           </div>
 
@@ -283,10 +356,12 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
                   : `${item.quantity} ${item.quantity_unit ?? ""}`
               }
             />
+
             <InfoCard
               label="Quantity type"
               value={item.quantity_type.replaceAll("_", " ")}
             />
+
             <InfoCard
               label="Matched by"
               value={item.matched_by ?? "No exact match"}
@@ -297,6 +372,7 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
               Product match
             </p>
+
             <p
               className={`text-sm font-medium ${
                 item.product_match ? "text-green-700" : "text-red-700"
@@ -312,6 +388,7 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
             <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
               Conclusion
             </p>
+
             <p className="mt-2 text-sm leading-6 text-neutral-700">
               {item.conclusion}
             </p>
@@ -322,6 +399,7 @@ function LineItemResults({ items }: { items: LineItemReconciliation[] }) {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Checks
               </p>
+
               <ValidationChecks checks={item.checks} />
             </div>
           )}
@@ -352,12 +430,15 @@ export default function EvidencePage() {
   const [investigationId, setInvestigationId] = useState("4");
 
   const [files, setFiles] = useState<EvidenceFile[]>([]);
+
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
   const [extraction, setExtraction] = useState<EvidenceExtraction | null>(null);
+
   const [analysis, setAnalysis] = useState<EvidenceAnalysisResponse | null>(
     null,
   );
+
   const [reconciliation, setReconciliation] =
     useState<ReconciliationResponse | null>(null);
 
@@ -365,8 +446,8 @@ export default function EvidencePage() {
   const [processing, setProcessing] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
 
-  // NEW: Movement proposal state
   const [creatingMovement, setCreatingMovement] = useState(false);
+
   const [createdMovement, setCreatedMovement] =
     useState<MovementProposal | null>(null);
 
@@ -382,10 +463,12 @@ export default function EvidencePage() {
 
     try {
       const result = await getEvidence(id);
+
       setFiles(result.items ?? []);
       setError("");
     } catch (err) {
       setFiles([]);
+
       setError(err instanceof Error ? err.message : "Unable to load evidence.");
     } finally {
       setLoadingFiles(false);
@@ -434,6 +517,7 @@ export default function EvidencePage() {
       await uploadEvidence(id, file);
 
       setSuccess("Evidence uploaded successfully.");
+
       setSelectedFile(null);
       setExtraction(null);
       setAnalysis(null);
@@ -455,38 +539,44 @@ export default function EvidencePage() {
 
   async function selectEvidence(file: EvidenceFile) {
     setSelectedFile(file);
+
     setExtraction(null);
     setAnalysis(null);
     setReconciliation(null);
     setCreatedMovement(null);
+
     setError("");
     setSuccess("");
 
     const evidenceId = getEvidenceId(file);
 
-    try {
-      const savedAnalysis = await getEvidenceAnalysis(evidenceId);
-      setAnalysis(savedAnalysis);
-    } catch {
-      // No saved analysis yet.
-    }
+    // Document analysis is only loaded for PDFs.
+    if (file.content_type === "application/pdf") {
+      try {
+        const savedAnalysis = await getEvidenceAnalysis(evidenceId);
 
-    try {
-      const history = await getReconciliationHistory(evidenceId);
-
-      if (history.items?.length > 0) {
-        const latest = history.items[0];
-
-        setReconciliation({
-          reconciliation_id: latest.reconciliation_id,
-          evidence_id: evidenceId,
-          investigation_id: latest.investigation_id,
-          status: latest.status,
-          result: latest.result,
-        });
+        setAnalysis(savedAnalysis);
+      } catch {
+        // No saved document analysis.
       }
-    } catch {
-      // No reconciliation history yet.
+
+      try {
+        const history = await getReconciliationHistory(evidenceId);
+
+        if (history.items?.length > 0) {
+          const latest = history.items[0];
+
+          setReconciliation({
+            reconciliation_id: latest.reconciliation_id,
+            evidence_id: evidenceId,
+            investigation_id: latest.investigation_id,
+            status: latest.status,
+            result: latest.result,
+          });
+        }
+      } catch {
+        // No reconciliation history.
+      }
     }
   }
 
@@ -497,13 +587,20 @@ export default function EvidencePage() {
   async function handleExtract() {
     if (!selectedFile || processing) return;
 
+    if (selectedFile.content_type !== "application/pdf") {
+      setError("Text extraction is currently available for PDF evidence.");
+      return;
+    }
+
     setProcessing(true);
     setError("");
     setSuccess("");
 
     try {
       const result = await extractEvidence(getEvidenceId(selectedFile));
+
       setExtraction(result);
+
       setSuccess("Document text extracted successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extraction failed.");
@@ -513,11 +610,16 @@ export default function EvidencePage() {
   }
 
   // ============================================
-  // ANALYZE
+  // DOCUMENT ANALYZE
   // ============================================
 
   async function handleAnalyze() {
     if (!selectedFile || processing) return;
+
+    if (selectedFile.content_type !== "application/pdf") {
+      setError("Use Multimodal Visual Inspection for image evidence.");
+      return;
+    }
 
     setProcessing(true);
     setError("");
@@ -525,9 +627,11 @@ export default function EvidencePage() {
 
     try {
       const result = await analyzeEvidence(getEvidenceId(selectedFile));
+
       setAnalysis(result);
       setReconciliation(null);
       setCreatedMovement(null);
+
       setSuccess("Muse Spark analysis completed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
@@ -549,7 +653,9 @@ export default function EvidencePage() {
 
     try {
       const result = await reconcileEvidence(getEvidenceId(selectedFile));
+
       setReconciliation(result);
+
       setSuccess("Evidence reconciliation completed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reconciliation failed.");
@@ -566,10 +672,14 @@ export default function EvidencePage() {
     item: InventoryLineItem,
     lineItemIndex: number,
   ) {
-    if (!selectedFile || !analysis || creatingMovement) return;
+    if (!selectedFile || !analysis || creatingMovement) {
+      return;
+    }
 
     const evidenceId = getEvidenceId(selectedFile);
+
     const investigation = Number(investigationId);
+
     const quantity = item.quantity;
 
     if (!Number.isInteger(investigation) || investigation < 1) {
@@ -639,6 +749,11 @@ export default function EvidencePage() {
   // ============================================
 
   const evidenceId = selectedFile ? getEvidenceId(selectedFile) : null;
+
+  const isImageEvidence =
+    selectedFile?.content_type?.startsWith("image/") ?? false;
+
+  const isPdfEvidence = selectedFile?.content_type === "application/pdf";
 
   const inventoryItems = analysis ? getInventoryLineItems(analysis) : [];
 
@@ -714,12 +829,14 @@ export default function EvidencePage() {
               value={investigationId}
               onChange={(event) => {
                 setInvestigationId(event.target.value);
+
                 setFiles([]);
                 setSelectedFile(null);
                 setExtraction(null);
                 setAnalysis(null);
                 setReconciliation(null);
                 setCreatedMovement(null);
+
                 setError("");
                 setSuccess("");
               }}
@@ -871,19 +988,19 @@ export default function EvidencePage() {
                 </h2>
 
                 <p className="mt-2 max-w-sm text-sm text-neutral-500">
-                  Select a document from the evidence library to extract its
-                  contents and start AI analysis.
+                  Select a document or image from the evidence library to start
+                  analysis.
                 </p>
               </div>
             ) : (
               <>
-                {/* SELECTED DOCUMENT */}
+                {/* SELECTED EVIDENCE */}
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-6">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                        Selected document
+                        Selected evidence
                       </p>
 
                       <h2 className="mt-2 text-xl font-bold">
@@ -906,35 +1023,55 @@ export default function EvidencePage() {
                       </a>
                     )}
                   </div>
+                  {isImageEvidence && evidenceId !== null && (
+                    <EvidenceImagePreview
+                      evidenceId={evidenceId}
+                      filename={selectedFile.original_filename}
+                    />
+                  )}
+                  {isPdfEvidence && (
+                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={handleExtract}
+                        disabled={processing}
+                        className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        Extract text
+                      </button>
 
-                  <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    <button
-                      type="button"
-                      onClick={handleExtract}
-                      disabled={processing}
-                      className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-                    >
-                      Extract text
-                    </button>
+                      <button
+                        type="button"
+                        onClick={handleAnalyze}
+                        disabled={processing}
+                        className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                      >
+                        Analyze with AI
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={handleAnalyze}
-                      disabled={processing}
-                      className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-                    >
-                      Analyze with AI
-                    </button>
+                      <button
+                        type="button"
+                        onClick={handleReconcile}
+                        disabled={processing || !analysis}
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50"
+                      >
+                        Reconcile evidence
+                      </button>
+                    </div>
+                  )}
 
-                    <button
-                      type="button"
-                      onClick={handleReconcile}
-                      disabled={processing || !analysis}
-                      className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50"
-                    >
-                      Reconcile evidence
-                    </button>
-                  </div>
+                  {isImageEvidence && (
+                    <div className="mt-5 rounded-xl border border-red-100 bg-red-50/50 p-4">
+                      <p className="text-sm font-semibold text-neutral-900">
+                        Image evidence detected
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-neutral-600">
+                        Use multimodal visual inspection to analyze the image
+                        with Muse Spark and SAM.
+                      </p>
+                    </div>
+                  )}
 
                   {processing && (
                     <p className="mt-4 text-sm text-neutral-500">
@@ -942,6 +1079,17 @@ export default function EvidencePage() {
                     </p>
                   )}
                 </section>
+
+                {/* MULTIMODAL VISUAL INSPECTION */}
+
+                {isImageEvidence && selectedFile && evidenceId !== null && (
+                  <VisualInspectionPanel
+                    key={evidenceId}
+                    evidenceId={evidenceId}
+                    contentType={selectedFile.content_type}
+                    filename={selectedFile.original_filename}
+                  />
+                )}
 
                 {/* EXTRACTION */}
 
@@ -955,6 +1103,7 @@ export default function EvidencePage() {
                     <div className="mb-4 grid grid-cols-2 gap-3">
                       <div className="rounded-xl bg-neutral-50 p-4">
                         <p className="text-xs text-neutral-500">Pages</p>
+
                         <p className="mt-1 text-2xl font-bold">
                           {extraction.page_count}
                         </p>
@@ -962,6 +1111,7 @@ export default function EvidencePage() {
 
                       <div className="rounded-xl bg-neutral-50 p-4">
                         <p className="text-xs text-neutral-500">Characters</p>
+
                         <p className="mt-1 text-2xl font-bold">
                           {extraction.character_count}
                         </p>
@@ -975,9 +1125,9 @@ export default function EvidencePage() {
                   </section>
                 )}
 
-                {/* AI ANALYSIS */}
+                {/* DOCUMENT AI ANALYSIS */}
 
-                {analysis && (
+                {analysis && isPdfEvidence && (
                   <section className="rounded-2xl border border-neutral-200 bg-white p-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <SectionTitle
@@ -1041,7 +1191,7 @@ export default function EvidencePage() {
                       <InventoryLineItemsTable items={inventoryItems} />
                     </div>
 
-                    {/* NEW: SALES MOVEMENT PROPOSAL */}
+                    {/* SALES MOVEMENT PROPOSAL */}
 
                     <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/40 p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1069,7 +1219,9 @@ export default function EvidencePage() {
                             <li>
                               The document is identified as a sales report.
                             </li>
+
                             <li>The document is inventory relevant.</li>
+
                             <li>
                               At least one line item has a valid positive
                               quantity sold.
@@ -1080,7 +1232,9 @@ export default function EvidencePage() {
                         <div className="mt-5 space-y-3">
                           {eligibleSalesItems.map(({ item, index }) => (
                             <div
-                              key={`${item.sku ?? item.product_name ?? "sale"}-${index}`}
+                              key={`${
+                                item.sku ?? item.product_name ?? "sale"
+                              }-${index}`}
                               className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div className="min-w-0">
@@ -1135,6 +1289,7 @@ export default function EvidencePage() {
                               <p className="text-sm font-bold text-green-800">
                                 Movement proposal created successfully
                               </p>
+
                               <p className="mt-1 text-xs text-green-700">
                                 Proposal #{createdMovement.id} ·{" "}
                                 {createdMovement.product_name ?? "Product"} ·{" "}
@@ -1217,7 +1372,7 @@ export default function EvidencePage() {
 
                 {/* RECONCILIATION */}
 
-                {reconciliation && reconciliationResult && (
+                {reconciliation && reconciliationResult && isPdfEvidence && (
                   <section className="rounded-2xl border border-neutral-200 bg-white p-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <SectionTitle
@@ -1269,6 +1424,7 @@ export default function EvidencePage() {
                                     <span className="text-sm font-medium">
                                       {product.quantity ?? "—"}
                                     </span>
+
                                     <StatusBadge status={product.status} />
                                   </div>
                                 </div>
@@ -1285,6 +1441,7 @@ export default function EvidencePage() {
                             title="Line-item reconciliation"
                             description="Each extracted product is checked independently against the investigation."
                           />
+
                           <LineItemResults
                             items={reconciliationResult.line_item_results}
                           />
@@ -1295,6 +1452,7 @@ export default function EvidencePage() {
                       <h3 className="mb-3 text-sm font-semibold">
                         Overall validation checks
                       </h3>
+
                       <ValidationChecks checks={reconciliationResult.checks} />
                     </div>
 

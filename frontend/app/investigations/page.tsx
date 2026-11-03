@@ -96,7 +96,6 @@ export default function InvestigationsPage() {
   // Load report history whenever the selected product changes.
   const loadReports = useCallback(async () => {
     if (!selectedProductId) {
-      setReports([]);
       return;
     }
 
@@ -122,9 +121,22 @@ export default function InvestigationsPage() {
   }, [selectedProductId]);
 
   useEffect(() => {
-    loadReports();
-  }, [loadReports]);
+    let cancelled = false;
 
+    const scheduleLoad = async () => {
+      await Promise.resolve();
+
+      if (!cancelled) {
+        void loadReports();
+      }
+    };
+
+    void scheduleLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReports]);
   // Generate an AI investigation.
   async function handleGenerateReport() {
     if (!selectedProductId || generating) return;
@@ -323,8 +335,9 @@ export default function InvestigationsPage() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">
-                Generate an AI investigation to analyze this product's inventory
-                position, historical findings and possible discrepancies.
+                Generate an AI investigation to analyze this product&apos;s
+                inventory position, historical findings and possible
+                discrepancies.
               </p>
             </div>
           ) : (

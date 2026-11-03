@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "../components/Navbar";
 import "./globals.css";
-
+import { Suspense } from "react";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -49,7 +49,11 @@ export default function RootLayout({
           Skip to content
         </a>
 
-        <Navbar />
+        <Suspense
+          fallback={<div className="h-16 border-b border-zinc-200 bg-white" />}
+        >
+          <Navbar />
+        </Suspense>
 
         <div className="flex flex-1 flex-col pt-16">
           <main

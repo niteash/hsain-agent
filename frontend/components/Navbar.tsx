@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,11 +8,61 @@ const navigation = [
   { href: "/", label: "Dashboard" },
   { href: "/products", label: "Products" },
   { href: "/suppliers", label: "Suppliers" },
+  { href: "/investigations", label: "Investigations" },
 ];
+
+function NavigationLinks({
+  onNavigate,
+  mobile = false,
+}: {
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      className={
+        mobile ? "flex flex-col gap-1" : "hidden items-center gap-1 sm:flex"
+      }
+    >
+      {navigation.map(({ href, label }) => {
+        const active =
+          href === "/"
+            ? pathname === "/"
+            : pathname === href || pathname.startsWith(`${href}/`);
+
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              active
+                ? "bg-red-50 text-red-700"
+                : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+            }`}
+          >
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function NavigationFallback({ mobile = false }: { mobile?: boolean }) {
+  return (
+    <div
+      className={mobile ? "h-10" : "hidden h-10 w-64 sm:block"}
+      aria-hidden="true"
+    />
+  );
+}
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = usePathname();
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-zinc-200 bg-white">
@@ -30,34 +80,17 @@ export default function Navbar() {
             <p className="text-sm font-bold tracking-tight text-zinc-950">
               Hsain Agent
             </p>
+
             <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-zinc-400">
               Retail Intelligence
             </p>
           </div>
         </Link>
 
-        {/* Desktop navigation */}
-        <nav className="hidden items-center gap-1 sm:flex">
-          {navigation.map(({ href, label }) => {
-            const active = pathname === href;
+        <Suspense fallback={<NavigationFallback />}>
+          <NavigationLinks />
+        </Suspense>
 
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                  active
-                    ? "bg-red-50 text-red-700"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
-                }`}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Mobile menu button */}
         <button
           type="button"
           aria-label={
@@ -91,30 +124,14 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile navigation */}
       {menuOpen && (
-        <nav className="border-t border-zinc-100 bg-white px-4 py-3 shadow-lg sm:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col gap-1">
-            {navigation.map(({ href, label }) => {
-              const active = pathname === href;
-
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMenuOpen(false)}
-                  className={`rounded-lg px-4 py-3 text-sm font-semibold transition ${
-                    active
-                      ? "bg-red-50 text-red-700"
-                      : "text-zinc-600 hover:bg-zinc-100"
-                  }`}
-                >
-                  {label}
-                </Link>
-              );
-            })}
+        <div className="border-t border-zinc-100 bg-white px-4 py-3 shadow-lg sm:hidden">
+          <div className="mx-auto max-w-7xl">
+            <Suspense fallback={<NavigationFallback mobile />}>
+              <NavigationLinks mobile onNavigate={() => setMenuOpen(false)} />
+            </Suspense>
           </div>
-        </nav>
+        </div>
       )}
     </header>
   );

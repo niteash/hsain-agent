@@ -98,7 +98,7 @@ def mock_context(product_id):
 
 
 @patch(
-    "app.services.investigation_service.generate_response"
+    "app.services.investigation_service.generate_wonder_response"
 )
 @patch(
     "app.services.investigation_service.build_investigation_context"
@@ -145,7 +145,7 @@ def test_retrieve_saved_report(client):
     test_client, product_id = client
 
     with patch(
-        "app.services.investigation_service.generate_response"
+        "app.services.investigation_service.generate_wonder_response"
     ) as mock_generate, patch(
         "app.services.investigation_service.build_investigation_context"
     ) as mock_context:
@@ -197,7 +197,7 @@ def test_list_product_investigation_reports(client):
     test_client, product_id = client
 
     with patch(
-        "app.services.investigation_service.generate_response"
+        "app.services.investigation_service.generate_wonder_response"
     ) as mock_generate, patch(
         "app.services.investigation_service.build_investigation_context"
     ) as mock_context:
@@ -238,7 +238,7 @@ def test_invalid_ai_response_returns_502(client):
     test_client, product_id = client
 
     with patch(
-        "app.services.investigation_service.generate_response"
+        "app.services.investigation_service.generate_wonder_response"
     ) as mock_generate, patch(
         "app.services.investigation_service.build_investigation_context"
     ) as mock_context:

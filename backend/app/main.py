@@ -13,6 +13,10 @@ from app.api.investigations import router as investigations_router
 from app.api import products
 from app.api.inventory_risk import router as inventory_risk_router
 from app.api.suppliers import router as suppliers_router
+from app.api.multimodal import router as multimodal_router
+from app.api.visual_reviews import router as visual_reviews_router
+
+
 from app.api.reorder_intelligence import (
     router as reorder_intelligence_router,
 )
@@ -47,7 +51,8 @@ app.include_router(products.router)
 app.include_router(inventory_risk_router)
 app.include_router(reorder_intelligence_router)
 app.include_router(suppliers_router)
-app.include_router(products.router)
+app.include_router(multimodal_router)
+app.include_router(visual_reviews_router)
 
 @app.get("/health")
 def health_check():

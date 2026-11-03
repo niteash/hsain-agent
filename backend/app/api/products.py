@@ -32,7 +32,7 @@ def validate_stock_thresholds(
         and minimum_stock > reorder_point
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Minimum stock cannot exceed the reorder point.",
         )
 
@@ -42,7 +42,7 @@ def validate_stock_thresholds(
         and reorder_point > maximum_stock
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Reorder point cannot exceed maximum stock.",
         )
 
@@ -52,7 +52,7 @@ def validate_stock_thresholds(
         and minimum_stock > maximum_stock
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Minimum stock cannot exceed maximum stock.",
         )
 
@@ -74,7 +74,7 @@ def validate_preferred_supplier(
 
     if not supplier.is_active:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Cannot assign an inactive supplier.",
         )
 

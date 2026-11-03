@@ -49,7 +49,13 @@ export default function ProductDetailsClient({
   }, [productId]);
 
   useEffect(() => {
-    void loadProduct();
+    const timeoutId = window.setTimeout(() => {
+      void loadProduct();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadProduct]);
 
   // ============================================================

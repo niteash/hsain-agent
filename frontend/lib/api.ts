@@ -117,6 +117,7 @@ export function investigateInventory(input: {
 export function proposeOrder(input: {
   investigation_id: number;
   quantity: number;
+  supplier_id: number;
 }) {
   return request<Order>("/api/orders/propose", {
     method: "POST",
@@ -191,7 +192,6 @@ export type InventoryLineItem = {
 export type InventoryData = {
   line_items?: InventoryLineItem[];
 
-  // Legacy compatibility fields
   product_name?: string | null;
   quantity?: number | null;
   quantity_type?: QuantityType;
@@ -263,11 +263,9 @@ export type ReconciliationResult = {
   status: string;
   product_match?: boolean;
 
-  // Legacy fields
   quantity_type?: string;
   reported_quantity?: number | null;
 
-  // Multi-product fields
   matched_products?: MatchedProduct[];
   line_item_results?: LineItemReconciliation[];
 
@@ -350,7 +348,7 @@ export function getEvidence(investigationId: number) {
 }
 
 // ============================================
-// EXTRACT DOCUMENT TEXT
+// DOCUMENT TEXT EXTRACTION
 // ============================================
 
 export function extractEvidence(evidenceId: number) {
@@ -362,10 +360,6 @@ export function extractEvidence(evidenceId: number) {
   );
 }
 
-// ============================================
-// GET EXTRACTION
-// ============================================
-
 export function getEvidenceExtraction(evidenceId: number) {
   return evidenceRequest<EvidenceExtraction>(
     `/api/document-analysis/${evidenceId}/extraction`,
@@ -373,7 +367,7 @@ export function getEvidenceExtraction(evidenceId: number) {
 }
 
 // ============================================
-// ANALYZE DOCUMENT WITH MUSE SPARK
+// MUSE SPARK DOCUMENT ANALYSIS
 // ============================================
 
 export function analyzeEvidence(evidenceId: number) {
@@ -385,10 +379,6 @@ export function analyzeEvidence(evidenceId: number) {
   );
 }
 
-// ============================================
-// GET SAVED ANALYSIS
-// ============================================
-
 export function getEvidenceAnalysis(evidenceId: number) {
   return evidenceRequest<EvidenceAnalysisResponse>(
     `/api/document-analysis/${evidenceId}/analysis`,
@@ -396,7 +386,7 @@ export function getEvidenceAnalysis(evidenceId: number) {
 }
 
 // ============================================
-// RECONCILE EVIDENCE
+// RECONCILIATION
 // ============================================
 
 export function reconcileEvidence(evidenceId: number) {
@@ -407,10 +397,6 @@ export function reconcileEvidence(evidenceId: number) {
     },
   );
 }
-
-// ============================================
-// GET RECONCILIATION HISTORY
-// ============================================
 
 export function getReconciliationHistory(evidenceId: number) {
   return evidenceRequest<ReconciliationHistory>(
@@ -539,5 +525,287 @@ export function decideMovementProposal(
       },
       body: JSON.stringify(input),
     },
+  );
+}
+
+// ============================================
+// MULTIMODAL VISUAL INSPECTION TYPES
+// ============================================
+
+export type VisualReviewStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "needs_review";
+
+export type VisualAnalysisStatus =
+  | "completed"
+  | "partial_success"
+  | "rejected"
+  | "needs_replacement";
+
+export type VisualBoundingBox = {
+  coordinates: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+  width?: number;
+  height?: number;
+  area?: number;
+  confidence?: number | null;
+  frame?: unknown;
+};
+
+export type VisualDetection = {
+  object_id: string;
+  bounding_box: VisualBoundingBox | null;
+  segmentation_mask: Record<string, unknown> | null;
+  has_bounding_box: boolean;
+  has_segmentation_mask: boolean;
+  is_fully_segmented: boolean;
+  bounding_box_record_count: number;
+  mask_record_count: number;
+  status: VisualReviewStatus;
+  actor?: string | null;
+  note?: string | null;
+};
+
+export type VisualReviewSummary = {
+  total_candidates: number;
+  accepted: number;
+  rejected: number;
+  pending: number;
+  needs_review: number;
+  resolved: number;
+  completion_percentage: number;
+  can_complete: boolean;
+};
+
+export type VisualAnalysisResponse = {
+  success: boolean;
+  analysis_id: number;
+  evidence_id: number;
+  analysis_revision: number;
+  model: string;
+  is_inventory_relevant: boolean;
+  verification_status: string;
+  human_verification_required?: boolean;
+  inventory_mutation_performed: false;
+
+  analysis: {
+    analysis_type?: string;
+    evidence_id?: number;
+    investigation_id?: number;
+
+    product?: {
+      id: number;
+      name: string;
+    };
+
+    source?: {
+      filename: string;
+      content_type: string;
+      file_size: number;
+    };
+
+    models?: {
+      reasoning: string;
+      segmentation: string | null;
+    };
+
+    evidence_classification?: {
+      classification: string;
+      is_inventory_relevant: boolean;
+      requires_replacement_evidence: boolean;
+      reason: string;
+    };
+
+    spark_analysis?: {
+      findings?: {
+        scene_description?: string;
+
+        detected_products?: Array<{
+          product_description: string;
+          brand?: string | null;
+          visible_label?: string | null;
+          estimated_visible_instances?: number | null;
+          location_description?: string;
+          confidence?: string;
+          observations?: string[];
+        }>;
+
+        shelf_conditions?: string[];
+        potential_anomalies?: string[];
+        limitations?: string[];
+        human_verification_required?: boolean;
+      };
+    };
+
+    segmentation?: {
+      status: string;
+      model?: string;
+      object_prompt?: string;
+      processing_status?: string;
+
+      processed_results?: {
+        status: string;
+        candidate_instance_count: number;
+        objects: VisualDetection[];
+
+        quality?: {
+          total_unique_object_ids: number;
+          objects_with_bounding_boxes: number;
+          objects_with_masks: number;
+          fully_segmented_objects: number;
+          segmentation_record_completeness: number;
+        };
+
+        warnings?: string[];
+      };
+    };
+
+    verification?: {
+      status: string;
+      verified_by: string | null;
+      verified_at: string | null;
+      human_verification_required: boolean;
+    };
+
+    status?: string;
+    analysis_revision?: number;
+    inventory_mutation_performed?: false;
+  };
+};
+
+export type VisualDetectionsResponse = {
+  evidence_id: number;
+  analysis_id: number;
+  analysis_revision: number;
+  candidate_count: number;
+  detections: VisualDetection[];
+  verification: VisualReviewSummary;
+  inventory_mutation_performed: false;
+};
+
+export type VisualVerificationResponse = {
+  evidence_id: number;
+  analysis_revision: number;
+  verification_status: string;
+
+  verification: {
+    status: string;
+    verified_by: string | null;
+    verified_at: string | null;
+    human_verification_required: boolean;
+  };
+
+  summary: VisualReviewSummary;
+  inventory_mutation_performed: false;
+};
+
+export type VisualReviewUpdateResponse = {
+  evidence_id: number;
+  analysis_revision: number;
+  object_id: string;
+  status: VisualReviewStatus;
+  verification_invalidated?: boolean;
+  inventory_mutation_performed?: false;
+};
+
+export type VisualAuditResponse = {
+  evidence_id: number;
+  current_analysis_revision: number | null;
+  verification: Record<string, unknown>;
+  verification_history: unknown[];
+  verification_events: unknown[];
+  reviews: unknown[];
+  events: unknown[];
+  inventory_mutation_performed: false;
+};
+
+// ============================================
+// MULTIMODAL VISUAL INSPECTION API
+// ============================================
+
+export function analyzeEvidenceImage(
+  evidenceId: number,
+  objectPrompt?: string,
+) {
+  const params = new URLSearchParams();
+
+  if (objectPrompt?.trim()) {
+    params.set("object_prompt", objectPrompt.trim());
+  }
+
+  const query = params.toString();
+
+  return evidenceRequest<VisualAnalysisResponse>(
+    `/api/multimodal/evidence/${evidenceId}/analyze-image${
+      query ? `?${query}` : ""
+    }`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function getVisualAnalysis(evidenceId: number) {
+  return evidenceRequest<VisualAnalysisResponse>(
+    `/api/multimodal/evidence/${evidenceId}/analysis`,
+  );
+}
+
+export function getVisualDetections(evidenceId: number) {
+  return evidenceRequest<VisualDetectionsResponse>(
+    `/api/multimodal/evidence/${evidenceId}/detections`,
+  );
+}
+
+export function updateVisualDetection(
+  evidenceId: number,
+  objectId: string,
+  input: {
+    status: VisualReviewStatus;
+    actor: string;
+    note?: string;
+  },
+) {
+  return evidenceRequest<VisualReviewUpdateResponse>(
+    `/api/multimodal/evidence/${evidenceId}/detections/${encodeURIComponent(
+      objectId,
+    )}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function getVisualVerification(evidenceId: number) {
+  return evidenceRequest<VisualVerificationResponse>(
+    `/api/multimodal/evidence/${evidenceId}/verification`,
+  );
+}
+
+export function completeVisualVerification(
+  evidenceId: number,
+  input: {
+    actor: string;
+  },
+) {
+  return evidenceRequest<VisualVerificationResponse>(
+    `/api/multimodal/evidence/${evidenceId}/verification/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function getVisualAudit(evidenceId: number) {
+  return evidenceRequest<VisualAuditResponse>(
+    `/api/multimodal/evidence/${evidenceId}/verification/audit`,
   );
 }

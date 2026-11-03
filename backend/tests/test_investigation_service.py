@@ -44,7 +44,7 @@ def test_reject_empty_response():
 
 
 @patch(
-    "app.services.investigation_service.generate_response"
+    "app.services.investigation_service.generate_wonder_response"
 )
 @patch(
     "app.services.investigation_service.build_investigation_context"
@@ -109,7 +109,7 @@ def test_generate_investigation_report(
 
 
 @patch(
-    "app.services.investigation_service.generate_response"
+    "app.services.investigation_service.generate_wonder_response"
 )
 @patch(
     "app.services.investigation_service.build_investigation_context"

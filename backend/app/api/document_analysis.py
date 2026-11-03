@@ -9,7 +9,7 @@ from openai import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import MODEL_NAME
+from app.config import META_MODELS
 from app.dependencies import get_db
 from app.models import (
     EvidenceAnalysis,
@@ -284,7 +284,7 @@ def analyze_uploaded_evidence(
         )
 
         existing.analysis_json = serialized_analysis
-        existing.model = MODEL_NAME
+        existing.model = META_MODELS["spark"]
 
         record = existing
 
@@ -296,8 +296,7 @@ def analyze_uploaded_evidence(
                 analysis.is_inventory_relevant
             ),
             analysis_json=serialized_analysis,
-            model=MODEL_NAME,
-        )
+model=META_MODELS["spark"],        )
 
         db.add(record)
 

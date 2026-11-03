@@ -142,9 +142,14 @@ export default function InventoryTimelinePage() {
   }, [page]);
 
   useEffect(() => {
-    void loadMovements();
-  }, [loadMovements]);
+    const timeoutId = window.setTimeout(() => {
+      void loadMovements();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadMovements]);
   const filteredMovements = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -253,7 +258,7 @@ export default function InventoryTimelinePage() {
             <p className="mt-1 text-xs leading-5 text-red-800">
               This timeline displays recorded stock movements. Pending proposals
               and rejected movements are not included. The current stock shown
-              is the product's latest recorded quantity, not its historical
+              is the product&apos;s latest recorded quantity, not its historical
               balance at transaction time.
             </p>
           </div>

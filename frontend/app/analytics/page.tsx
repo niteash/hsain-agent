@@ -1345,7 +1345,13 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    void loadAnalytics();
+    const timeoutId = window.setTimeout(() => {
+      void loadAnalytics();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadAnalytics]);
 
   // ============================================================

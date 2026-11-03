@@ -39,9 +39,14 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
-    void loadProducts();
-  }, [loadProducts]);
+    const timeoutId = window.setTimeout(() => {
+      void loadProducts();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadProducts]);
   // ============================================================
   // SEARCH AND FILTER
   // ============================================================

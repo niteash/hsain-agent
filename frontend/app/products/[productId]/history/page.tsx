@@ -94,9 +94,14 @@ function ProductHistoryContent() {
   }, [productId, page]);
 
   useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    const timeoutId = window.setTimeout(() => {
+      void loadHistory();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadHistory]);
   const totalReceived = movements
     .filter((movement) => movement.quantity_delta > 0)
     .reduce((sum, movement) => sum + movement.quantity_delta, 0);
@@ -104,8 +109,6 @@ function ProductHistoryContent() {
   const totalDeducted = movements
     .filter((movement) => movement.quantity_delta < 0)
     .reduce((sum, movement) => sum + Math.abs(movement.quantity_delta), 0);
-
-  const hasNextPage = movements.length === PAGE_SIZE;
 
   return (
     <main className="min-h-screen bg-[#f7f7f8] px-5 py-8 sm:px-8 lg:px-10">

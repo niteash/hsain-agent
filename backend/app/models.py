@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -82,7 +83,9 @@ class Product(Base):
         
     )
 
-    investigations: Mapped[list["Investigation"]] = relationship()
+    investigations: Mapped[list["Investigation"]] = relationship(
+    back_populates="product",
+)
     
     sku: Mapped[str | None] = mapped_column(
         String(80),
@@ -208,7 +211,11 @@ class Investigation(Base):
     )
 
     expected_stock: Mapped[int] = mapped_column(Integer)
-    product: Mapped["Product"] = relationship()
+
+    product: Mapped["Product"] = relationship(
+    back_populates="investigations",
+)
+
     physical_stock: Mapped[int] = mapped_column(Integer)
 
     units_sold: Mapped[int] = mapped_column(
@@ -254,41 +261,38 @@ class Investigation(Base):
 # ============================================================
 
 class SupplierOrder(Base):
-    product: Mapped["Product"] = relationship()
     __tablename__ = "supplier_orders"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
 
     investigation_id: Mapped[int] = mapped_column(
         ForeignKey("investigations.id"),
         index=True,
     )
-    supplier_id: Mapped[int | None] = mapped_column(
-    ForeignKey(
-        "suppliers.id",
-        ondelete="SET NULL",
-    ),
-    nullable=True,
-    index=True,
-)
 
-    supplier: Mapped["Supplier | None"] = relationship()
     supplier_id: Mapped[int | None] = mapped_column(
-    ForeignKey("suppliers.id", ondelete="SET NULL"),
-    nullable=True,
-    index=True,
-)
-
-    supplier: Mapped["Supplier | None"] = relationship()
+        ForeignKey(
+            "suppliers.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
 
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id"),
         index=True,
     )
 
-    quantity: Mapped[int] = mapped_column(Integer)
+    quantity: Mapped[int] = mapped_column(
+        Integer,
+    )
 
-    reason: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(
+        Text,
+    )
 
     status: Mapped[str] = mapped_column(
         String(30),
@@ -311,7 +315,9 @@ class SupplierOrder(Base):
         default=utc_now,
     )
 
-
+    # Relationships
+    product: Mapped["Product"] = relationship()
+    supplier: Mapped["Supplier | None"] = relationship()
 # ============================================================
 # EVIDENCE FILE
 # ============================================================
@@ -813,5 +819,201 @@ class StockDiscrepancyAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
+        index=True,
+    )
+
+# ============================================================
+# EVIDENCE VISUAL ANALYSIS
+# ============================================================
+
+class EvidenceVisualAnalysis(Base):
+    __tablename__ = "evidence_visual_analyses"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "evidence_id",
+            name="uq_evidence_visual_analyses_evidence_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "evidence_files.id",
+            name="fk_evidence_visual_analyses_evidence_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    analysis_revision: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        server_default="1",
+        nullable=False,
+    )
+
+    model: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    is_inventory_relevant: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="0",
+        nullable=False,
+    )
+
+    verification_status: Mapped[str] = mapped_column(
+        String(30),
+        default="pending",
+        server_default="pending",
+        nullable=False,
+    )
+
+    analysis_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+    )
+
+
+# ============================================================
+# VISUAL DETECTION REVIEW
+# ============================================================
+
+class VisualDetectionReview(Base):
+    __tablename__ = "visual_detection_reviews"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "evidence_id",
+            "analysis_revision",
+            "object_id",
+            name="uq_visual_review_evidence_revision_object",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'accepted', 'rejected', 'needs_review')",
+            name="ck_visual_detection_review_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    evidence_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "evidence_files.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    analysis_revision: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    object_id: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="pending",
+        server_default="pending",
+        nullable=False,
+        index=True,
+    )
+
+    actor: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
+    note: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        server_default="",
+        nullable=False,
+    )
+
+    detection_snapshot_json: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+
+# ============================================================
+# VISUAL DETECTION REVIEW EVENTS
+# ============================================================
+
+class VisualDetectionReviewEvent(Base):
+    __tablename__ = "visual_detection_review_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    review_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "visual_detection_reviews.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+    )
+
+    actor: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+    )
+
+    previous_status: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    new_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    details_json: Mapped[str] = mapped_column(
+        Text,
+        default="{}",
+        server_default="{}",
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
         index=True,
     )

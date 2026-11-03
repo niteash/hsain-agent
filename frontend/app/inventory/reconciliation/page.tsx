@@ -80,9 +80,14 @@ export default function StockReconciliationPage() {
   }, []);
 
   useEffect(() => {
-    void loadReconciliation();
-  }, [loadReconciliation]);
+    const timeoutId = window.setTimeout(() => {
+      void loadReconciliation();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadReconciliation]);
   async function handleDetection() {
     try {
       setDetecting(true);

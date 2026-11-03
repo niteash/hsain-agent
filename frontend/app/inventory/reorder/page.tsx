@@ -937,9 +937,14 @@ export default function ReorderIntelligencePage() {
 
   // Initial load and urgency-filter changes.
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadData]);
   // ============================================================
   // SUMMARY
   // ============================================================

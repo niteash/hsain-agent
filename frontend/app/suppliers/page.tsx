@@ -64,9 +64,14 @@ export default function SuppliersPage() {
   }, []);
 
   useEffect(() => {
-    void loadSuppliers();
-  }, [loadSuppliers]);
+    const timeoutId = window.setTimeout(() => {
+      void loadSuppliers();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadSuppliers]);
   const filteredSuppliers = useMemo(() => {
     const term = search.trim().toLowerCase();
 

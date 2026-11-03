@@ -28,6 +28,9 @@ import {
   type Order,
 } from "@/lib/api";
 
+import { getSuppliers } from "@/lib/products";
+import type { Supplier } from "@/types/product";
+
 type Tab = "overview" | "investigate" | "orders";
 
 const initialForm = {
@@ -194,7 +197,6 @@ function RouteLinks({ mobile = false }: { mobile?: boolean }) {
                   }
                 >
                   <Icon size={18} strokeWidth={1.8} className="shrink-0" />
-
                   <span className="min-w-0 truncate">{label}</span>
                 </Link>
               );
@@ -292,6 +294,12 @@ export default function Home() {
 
   const [orderQuantity, setOrderQuantity] = useState("12");
 
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
+  const [suppliersError, setSuppliersError] = useState("");
+  const [proposalError, setProposalError] = useState("");
+
   const [ownerName, setOwnerName] = useState("Demo Shop Owner");
 
   const [orderFilter, setOrderFilter] = useState("");
@@ -317,44 +325,100 @@ export default function Home() {
     setOrders(orderHistory.items);
   }, [orderFilter]);
 
+  // Load dashboard data.
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDashboard() {
-      setDashboardLoading(true);
-      setError("");
+    const timeoutId = window.setTimeout(() => {
+      async function loadDashboard() {
+        setDashboardLoading(true);
+        setError("");
 
-      try {
-        const [history, orderHistory] = await Promise.all([
-          getInvestigations(),
-          getOrders(orderFilter || undefined),
-        ]);
+        try {
+          const [history, orderHistory] = await Promise.all([
+            getInvestigations(),
+            getOrders(orderFilter || undefined),
+          ]);
 
-        if (cancelled) return;
+          if (cancelled) return;
 
-        setInvestigations(history.items);
-        setOrders(orderHistory.items);
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Could not connect to the backend.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setDashboardLoading(false);
+          setInvestigations(history.items);
+          setOrders(orderHistory.items);
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Could not connect to the backend.",
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            setDashboardLoading(false);
+          }
         }
       }
-    }
 
-    void loadDashboard();
+      void loadDashboard();
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [orderFilter]);
+
+  // Load active suppliers for reorder proposals.
+  useEffect(() => {
+    let cancelled = false;
+
+    const timeoutId = window.setTimeout(() => {
+      async function loadSuppliers() {
+        setSuppliersLoading(true);
+        setSuppliersError("");
+
+        try {
+          const result = await getSuppliers({
+            active_only: true,
+          });
+
+          if (!cancelled) {
+            setSuppliers(result.filter((supplier) => supplier.is_active));
+          }
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setSuppliersError(
+              err instanceof Error ? err.message : "Unable to load suppliers.",
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            setSuppliersLoading(false);
+          }
+        }
+      }
+
+      void loadSuppliers();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // Keep the selected supplier valid when the active supplier list changes.
+  useEffect(() => {
+    if (!selectedSupplierId) return;
+
+    const selectedSupplier = suppliers.find(
+      (supplier) => supplier.id === Number(selectedSupplierId),
+    );
+
+    if (!selectedSupplier || !selectedSupplier.is_active) {
+      setSelectedSupplierId("");
+    }
+  }, [suppliers, selectedSupplierId]);
 
   const pendingCount = orders.filter(
     (order) => order.status === "pending_approval",
@@ -395,6 +459,7 @@ export default function Home() {
     setInvestigationLoading(true);
     setError("");
     setNotice("");
+    setProposalError("");
 
     try {
       const result = await investigateInventory({
@@ -406,6 +471,8 @@ export default function Home() {
       });
 
       setLatest(result);
+      setSelectedSupplierId("");
+      setOrderQuantity("12");
 
       setNotice(
         `Investigation #${result.investigation_id} saved successfully.`,
@@ -435,43 +502,68 @@ export default function Home() {
   async function createProposal() {
     if (!latest || submittingProposal || submittingInvestigation) return;
 
+    setProposalError("");
+
     const quantity = Number(orderQuantity);
+    const supplierId = Number(selectedSupplierId);
 
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10000) {
-      setError("Enter a valid reorder quantity between 1 and 10,000.");
+      setProposalError("Enter a valid reorder quantity between 1 and 10,000.");
+      return;
+    }
+
+    if (
+      !selectedSupplierId ||
+      !Number.isSafeInteger(supplierId) ||
+      supplierId <= 0
+    ) {
+      setProposalError(
+        "Please select a supplier before creating the proposal.",
+      );
+      return;
+    }
+
+    const selectedSupplier = suppliers.find(
+      (supplier) => supplier.id === supplierId && supplier.is_active,
+    );
+
+    if (!selectedSupplier) {
+      setProposalError(
+        "The selected supplier is unavailable or inactive. Please choose another supplier.",
+      );
       return;
     }
 
     setSubmittingProposal(true);
     setProposalLoading(true);
-    setError("");
     setNotice("");
 
     try {
       const order = await proposeOrder({
         investigation_id: latest.investigation_id,
         quantity,
+        supplier_id: supplierId,
       });
 
-      setNotice(`Order proposal #${order.order_id} is awaiting approval.`);
+      setNotice(
+        `Order proposal #${order.order_id} for ${selectedSupplier.name} is awaiting approval.`,
+      );
+
       setTab("orders");
 
       try {
         await refresh();
       } catch {
-        setError("Proposal was created, but order history could not refresh.");
+        setNotice(
+          `Proposal #${order.order_id} was created, but order history could not refresh.`,
+        );
       }
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Proposal creation failed.";
-
-      setError(message);
-
-      try {
-        await refresh();
-      } catch {
-        // Preserve the original error.
-      }
+      setProposalError(
+        err instanceof Error
+          ? err.message
+          : "Proposal creation failed. Please try again.",
+      );
     } finally {
       setSubmittingProposal(false);
       setProposalLoading(false);
@@ -716,8 +808,12 @@ export default function Home() {
               role="alert"
               className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
             >
-              <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Dismiss error">
+              <span className="min-w-0 break-words">{error}</span>
+              <button
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+                className="shrink-0"
+              >
                 ✕
               </button>
             </div>
@@ -728,10 +824,11 @@ export default function Home() {
               role="status"
               className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
             >
-              <span>{notice}</span>
+              <span className="min-w-0 break-words">{notice}</span>
               <button
                 onClick={() => setNotice("")}
                 aria-label="Dismiss message"
+                className="shrink-0"
               >
                 ✕
               </button>
@@ -817,6 +914,8 @@ export default function Home() {
                               confidence: item.confidence ?? "low",
                             });
 
+                            setSelectedSupplierId("");
+                            setProposalError("");
                             setTab("investigate");
                           }}
                           className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-zinc-50"
@@ -1079,7 +1178,7 @@ export default function Home() {
                   </div>
                 </form>
 
-                <div className="space-y-5">
+                <div className="min-w-0 space-y-5">
                   {!latest ? (
                     <div className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
                       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl text-red-600">
@@ -1097,18 +1196,18 @@ export default function Home() {
                     <>
                       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-7">
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-bold uppercase tracking-[0.15em] text-red-600">
                               Investigation #{latest.investigation_id}
                             </p>
-                            <h2 className="mt-2 text-xl font-bold">
+                            <h2 className="mt-2 break-words text-xl font-bold">
                               {latest.product_name}
                             </h2>
                           </div>
                           <StatusBadge status={latest.status} />
                         </div>
 
-                        <div className="mt-6 grid grid-cols-3 gap-3">
+                        <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
                           {[
                             ["Expected", latest.expected_remaining_stock],
                             ["Counted", latest.physical_stock],
@@ -1116,11 +1215,13 @@ export default function Home() {
                           ].map(([label, value]) => (
                             <div
                               key={label}
-                              className="rounded-xl bg-zinc-50 p-3"
+                              className="min-w-0 rounded-xl bg-zinc-50 p-2.5 sm:p-3"
                             >
-                              <p className="text-xs text-zinc-500">{label}</p>
+                              <p className="truncate text-xs text-zinc-500">
+                                {label}
+                              </p>
                               <p
-                                className={`mt-2 text-xl font-bold ${
+                                className={`mt-2 break-words text-lg font-bold sm:text-xl ${
                                   label === "Difference" && Number(value) < 0
                                     ? "text-red-600"
                                     : ""
@@ -1139,12 +1240,12 @@ export default function Home() {
                           <h3 className="text-sm font-bold">
                             Investigation summary
                           </h3>
-                          <p className="mt-2 text-sm leading-6 text-zinc-600">
+                          <p className="mt-2 break-words text-sm leading-6 text-zinc-600">
                             {latest.investigation}
                           </p>
                         </div>
 
-                        <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-zinc-200 p-4">
+                        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <p className="text-sm font-semibold">
                               AI confidence
@@ -1154,7 +1255,7 @@ export default function Home() {
                               arithmetic.
                             </p>
                           </div>
-                          <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold uppercase text-amber-700">
+                          <span className="w-fit rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold uppercase text-amber-700">
                             {latest.confidence}
                           </span>
                         </div>
@@ -1167,9 +1268,11 @@ export default function Home() {
                                 (cause, index) => (
                                   <li
                                     key={index}
-                                    className="flex gap-2 text-sm leading-5 text-zinc-600"
+                                    className="flex gap-2 break-words text-sm leading-5 text-zinc-600"
                                   >
-                                    <span className="text-amber-600">•</span>
+                                    <span className="shrink-0 text-amber-600">
+                                      •
+                                    </span>
                                     {cause}
                                   </li>
                                 ),
@@ -1193,9 +1296,11 @@ export default function Home() {
                                 (item, index) => (
                                   <li
                                     key={index}
-                                    className="flex gap-2 text-sm leading-5 text-zinc-600"
+                                    className="flex gap-2 break-words text-sm leading-5 text-zinc-600"
                                   >
-                                    <span className="text-red-600">→</span>
+                                    <span className="shrink-0 text-red-600">
+                                      →
+                                    </span>
                                     {item}
                                   </li>
                                 ),
@@ -1212,7 +1317,7 @@ export default function Home() {
                           <p className="text-xs font-bold uppercase tracking-wider text-red-700">
                             Recommended next step
                           </p>
-                          <p className="mt-2 text-sm leading-6 text-red-950">
+                          <p className="mt-2 break-words text-sm leading-6 text-red-950">
                             {latest.recommended_action}
                           </p>
                         </div>
@@ -1230,49 +1335,246 @@ export default function Home() {
                         </Link>
                       </div>
 
+                      {/* Reorder proposal */}
                       {latest.status === "shortage" && (
-                        <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-7">
-                          <h2 className="font-bold">Propose a reorder</h2>
-                          <p className="mt-1 text-sm leading-6 text-zinc-500">
-                            This creates a proposal for human review. It does
-                            not place an actual supplier order.
-                          </p>
+                        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                          <div className="border-b border-zinc-100 p-5 sm:p-7">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-red-600" />
+                                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-red-600">
+                                    Replenishment
+                                  </span>
+                                </div>
 
-                          <label className="mt-5 block">
-                            <span className="mb-2 block text-sm font-semibold">
-                              Proposed quantity
-                            </span>
-                            <input
-                              type="number"
-                              min={1}
-                              max={10000}
-                              value={orderQuantity}
-                              onChange={(event) =>
-                                setOrderQuantity(event.target.value)
-                              }
-                              className="form-input"
-                            />
-                          </label>
+                                <h2 className="mt-2 text-xl font-bold text-zinc-950">
+                                  Propose a reorder
+                                </h2>
 
-                          <button
-                            onClick={createProposal}
-                            disabled={
-                              proposalLoading ||
-                              investigationLoading ||
-                              !Number.isInteger(Number(orderQuantity)) ||
-                              Number(orderQuantity) < 1 ||
-                              Number(orderQuantity) > 10000
-                            }
-                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {proposalLoading && (
-                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-500">
+                                  Create a supplier proposal for human review.
+                                  This does not place an actual purchase order
+                                  or modify inventory.
+                                </p>
+                              </div>
+
+                              <span className="w-fit shrink-0 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                                Approval required
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-5 p-5 sm:p-7">
+                            <div className="grid gap-5 sm:grid-cols-2">
+                              {/* Supplier */}
+                              <div className="min-w-0">
+                                <label
+                                  htmlFor="reorder-supplier"
+                                  className="mb-2 block text-sm font-semibold text-zinc-800"
+                                >
+                                  Select supplier
+                                </label>
+
+                                <select
+                                  id="reorder-supplier"
+                                  value={selectedSupplierId}
+                                  onChange={(event) => {
+                                    setSelectedSupplierId(event.target.value);
+                                    setProposalError("");
+                                  }}
+                                  disabled={suppliersLoading || proposalLoading}
+                                  className="form-input"
+                                >
+                                  <option value="">
+                                    {suppliersLoading
+                                      ? "Loading suppliers..."
+                                      : "Choose a supplier"}
+                                  </option>
+
+                                  {suppliers.map((supplier) => (
+                                    <option
+                                      key={supplier.id}
+                                      value={supplier.id}
+                                    >
+                                      {supplier.name}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                {suppliersLoading && (
+                                  <p className="mt-2 text-xs text-zinc-400">
+                                    Loading active suppliers...
+                                  </p>
+                                )}
+
+                                {!suppliersLoading &&
+                                  !suppliersError &&
+                                  suppliers.length === 0 && (
+                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                      <p className="text-sm font-semibold text-amber-800">
+                                        No active suppliers available.
+                                      </p>
+
+                                      <p className="mt-1 text-xs leading-5 text-amber-700">
+                                        Add or activate a supplier before
+                                        creating a reorder proposal.
+                                      </p>
+
+                                      <Link
+                                        href="/suppliers"
+                                        className="mt-2 inline-flex text-sm font-bold text-red-700 hover:text-red-900"
+                                      >
+                                        Manage suppliers →
+                                      </Link>
+                                    </div>
+                                  )}
+                              </div>
+
+                              {/* Quantity */}
+                              <div className="min-w-0">
+                                <label
+                                  htmlFor="reorder-quantity"
+                                  className="mb-2 block text-sm font-semibold text-zinc-800"
+                                >
+                                  Proposed quantity
+                                </label>
+
+                                <input
+                                  id="reorder-quantity"
+                                  type="number"
+                                  min={1}
+                                  max={10000}
+                                  step={1}
+                                  value={orderQuantity}
+                                  onChange={(event) => {
+                                    setOrderQuantity(event.target.value);
+                                    setProposalError("");
+                                  }}
+                                  disabled={proposalLoading}
+                                  className="form-input"
+                                />
+
+                                <p className="mt-2 text-xs leading-5 text-zinc-400">
+                                  Enter a whole number between 1 and 10,000.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Supplier loading error */}
+                            {!suppliersLoading && suppliersError && (
+                              <div
+                                role="alert"
+                                className="rounded-xl border border-red-200 bg-red-50 p-4"
+                              >
+                                <p className="text-sm font-semibold text-red-800">
+                                  Unable to load suppliers
+                                </p>
+                                <p className="mt-1 break-words text-sm text-red-700">
+                                  {suppliersError}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setSuppliersLoading(true);
+                                    setSuppliersError("");
+
+                                    try {
+                                      const result = await getSuppliers({
+                                        active_only: true,
+                                      });
+                                      setSuppliers(
+                                        result.filter(
+                                          (supplier) => supplier.is_active,
+                                        ),
+                                      );
+                                    } catch (err) {
+                                      setSuppliersError(
+                                        err instanceof Error
+                                          ? err.message
+                                          : "Unable to load suppliers.",
+                                      );
+                                    } finally {
+                                      setSuppliersLoading(false);
+                                    }
+                                  }}
+                                  className="mt-3 text-sm font-bold text-red-700 hover:text-red-900"
+                                >
+                                  Retry loading suppliers →
+                                </button>
+                              </div>
                             )}
-                            {proposalLoading
-                              ? "Creating proposal…"
-                              : "Create approval proposal →"}
-                          </button>
-                        </div>
+
+                            {/* Inline proposal error */}
+                            {proposalError && (
+                              <div
+                                role="alert"
+                                className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4"
+                              >
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700">
+                                  !
+                                </span>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-red-800">
+                                    Unable to create reorder proposal
+                                  </p>
+
+                                  <p className="mt-1 break-words text-sm leading-5 text-red-700">
+                                    {proposalError}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setProposalError("")}
+                                  aria-label="Dismiss reorder error"
+                                  className="shrink-0 text-red-500 hover:text-red-800"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Submit */}
+                            <button
+                              type="button"
+                              onClick={createProposal}
+                              disabled={
+                                proposalLoading ||
+                                investigationLoading ||
+                                suppliersLoading ||
+                                Boolean(suppliersError) ||
+                                suppliers.length === 0 ||
+                                !selectedSupplierId ||
+                                !Number.isInteger(Number(orderQuantity)) ||
+                                Number(orderQuantity) < 1 ||
+                                Number(orderQuantity) > 10000
+                              }
+                              className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-red-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {proposalLoading && (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                              )}
+
+                              {proposalLoading
+                                ? "Creating proposal..."
+                                : "Create approval proposal →"}
+                            </button>
+
+                            {/* Safety notice */}
+                            <div className="flex items-start gap-3 rounded-xl bg-zinc-50 p-4">
+                              <span className="shrink-0 text-zinc-500">ⓘ</span>
+
+                              <p className="text-xs leading-5 text-zinc-500">
+                                Creating this proposal does not contact the
+                                supplier, create confirmed incoming inventory,
+                                or change current stock. An authorized human
+                                must review the proposal.
+                              </p>
+                            </div>
+                          </div>
+                        </section>
                       )}
                     </>
                   )}
@@ -1364,7 +1666,7 @@ export default function Home() {
                         <StatusBadge status={order.status} />
                       </div>
 
-                      <p className="mt-3 text-sm leading-6 text-zinc-600">
+                      <p className="mt-3 break-words text-sm leading-6 text-zinc-600">
                         {order.reason}
                       </p>
 

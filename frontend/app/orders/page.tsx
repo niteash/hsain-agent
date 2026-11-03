@@ -869,9 +869,14 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
 
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadData]);
   // ----------------------------------------------------------
   // FILTERED ORDERS
   // ----------------------------------------------------------
@@ -1118,7 +1123,7 @@ export default function OrdersPage() {
               </h2>
 
               <p className="mt-1 text-xs text-gray-500">
-                Enter the responsible person's name before approving or
+                Enter the responsible person&apos;s name before approving or
                 rejecting proposals.
               </p>
             </div>

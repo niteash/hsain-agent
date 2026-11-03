@@ -43,9 +43,11 @@ function MetricCard({
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-zinc-500">{label}</p>
+
       <p className={`mt-3 text-3xl font-bold ${colors[accent ?? "black"]}`}>
         {formatNumber(value)}
       </p>
+
       <p className="mt-2 text-xs text-zinc-400">{description}</p>
     </div>
   );
@@ -144,8 +146,15 @@ export default function InventoryDashboardPage() {
     }
   }, []);
 
+  // Defer initial loading until after the effect completes.
   useEffect(() => {
-    void loadDashboard();
+    const timeoutId = window.setTimeout(() => {
+      void loadDashboard();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadDashboard]);
 
   const totalStock =
@@ -196,9 +205,11 @@ export default function InventoryDashboardPage() {
           </div>
         </header>
 
+        {/* Error */}
         {error && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
+
             <button
               onClick={() => void loadDashboard()}
               className="ml-2 font-semibold underline"
@@ -208,6 +219,7 @@ export default function InventoryDashboardPage() {
           </div>
         )}
 
+        {/* Loading */}
         {loading && !reconciliation ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center text-sm text-zinc-500">
             Loading inventory data...

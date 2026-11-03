@@ -1,27 +1,31 @@
 import os
-
-from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()
+from dotenv import load_dotenv
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+load_dotenv(BACKEND_DIR / ".env")
 
 MODEL_API_KEY = os.getenv("MODEL_API_KEY")
+
 MODEL_API_BASE_URL = os.getenv(
     "MODEL_API_BASE_URL",
     "https://api.meta.ai/v1",
-)
+).rstrip("/")
+
 MODEL_NAME = os.getenv("MODEL_NAME", "muse-spark-1.3")
 
-
-def validate_config() -> None:
-    if not MODEL_API_KEY:
-        raise RuntimeError(
-            "MODEL_API_KEY is missing. Configure backend/.env."
-        )
-        
-        
-
-BACKEND_DIR = Path(__file__).resolve().parents[1]
+META_MODELS = {
+    "spark": os.getenv("MODEL_SPARK", "muse-spark-1.3"),
+    "wonder": os.getenv("MODEL_WONDER", "muse-wonder-1.0"),
+    "image": os.getenv("MODEL_IMAGE", "muse-image-1.0"),
+    "voice": os.getenv(
+        "MODEL_VOICE",
+        "muse-voice-transcribe-1.0",
+    ),
+    "sam": os.getenv("MODEL_SAM", "sam-3.1"),
+}
 
 UPLOAD_DIR = Path(
     os.getenv(
@@ -38,3 +42,15 @@ ALLOWED_EVIDENCE_TYPES = {
     "image/webp": ".webp",
     "application/pdf": ".pdf",
 }
+
+
+def validate_config() -> None:
+    if not MODEL_API_KEY:
+        raise RuntimeError(
+            "MODEL_API_KEY is missing. Configure backend/.env."
+        )
+
+    if not MODEL_API_BASE_URL.startswith("https://"):
+        raise RuntimeError(
+            "MODEL_API_BASE_URL must use HTTPS."
+        )

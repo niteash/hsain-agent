@@ -9,8 +9,7 @@ from app.schemas.evidence import (
     InventoryData,
     InventoryLineItem,
 )
-from app.services.meta_client import generate_response
-
+from app.services.meta_client import generate_spark_response
 
 MAX_ANALYSIS_CHARACTERS = 20_000
 
@@ -442,8 +441,7 @@ def analyze_evidence(
         investigation_context=investigation_context,
     )
 
-    raw_response = generate_response(prompt)
-
+    raw_response = generate_spark_response(prompt)
     try:
         parsed_response = parse_json_response(raw_response)
 
