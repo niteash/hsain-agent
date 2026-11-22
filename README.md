@@ -1,3 +1,5 @@
+CAMPUS code - AZTBBN
+
 # Hsain Agent
 
 **An AI back-office agent for small retail shops: voice note + shelf photo or video in, verified stock check and approved supplier reorder out.**
